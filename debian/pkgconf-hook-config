@@ -1,0 +1,1 @@
+post-invoke=if { test "$DPKG_HOOK_ACTION" = add-architecture || test "$DPKG_HOOK_ACTION" = remove-architecture; } && test -x /usr/share/pkgconf-dpkghook; then /usr/share/pkgconf-dpkghook update; fi

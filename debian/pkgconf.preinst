@@ -1,0 +1,24 @@
+#!/bin/sh
+
+set -e
+
+if [ "$1" = "install" ] || [ "$1" = "upgrade" ]
+then
+    dpkg-divert --package pkgconf --divert /usr/bin/pkg-config.real --rename /usr/bin/pkg-config
+    dpkg-divert --package pkgconf --divert /usr/share/aclocal/pkg.real.m4 --rename /usr/share/aclocal/pkg.m4
+    dpkg-divert --package pkgconf --divert /usr/share/man/man1/pkg-config.real.1.gz --rename /usr/share/man/man1/pkg-config.1.gz
+    if [ -d /usr/share/pkg-config-crosswrapper ]
+    then
+        echo Moving bogus pkg-config-crosswrapper directory out of way ...
+        mv /usr/share/pkg-config-crosswrapper /usr/share/pkg-config-crosswrapper.pkgconf
+        if [ -f /usr/share/pkg-config-crosswrapper.pkgconf/pkg-config-crosswrapper ]
+        then
+            echo Moving pkg-config-crosswrapper to /usr/share ...
+            mv /usr/share/pkg-config-crosswrapper.pkgconf/pkg-config-crosswrapper /usr/share/pkg-config-crosswrapper
+        fi
+        rmdir /usr/share/pkg-config-crosswrapper.pkgconf || echo Failed to remove old directory: /usr/share/pkg-config-crosswrapper.pkgconf >&2
+    fi
+    dpkg-divert --package pkgconf --divert /usr/share/pkg-config-crosswrapper.real --rename /usr/share/pkg-config-crosswrapper
+fi
+
+#DEBHELPER#

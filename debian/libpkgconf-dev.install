@@ -1,0 +1,4 @@
+/usr/include/pkgconf/libpkgconf
+/usr/lib/*/lib*.a
+/usr/lib/*/libpkgconf*.so
+/usr/lib/*/*/lib*.pc

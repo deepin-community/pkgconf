@@ -1,0 +1,90 @@
+Source: pkgconf
+Section: devel
+Priority: optional
+Maintainer: Andrej Shadura <andrewsh@debian.org>
+Build-Depends:
+ debhelper-compat (= 13),
+ kyua <!nocheck>,
+ atf-sh <!nocheck>
+Homepage: http://pkgconf.org/
+Standards-Version: 4.5.0
+Vcs-Git: https://salsa.debian.org/debian/pkgconf.git
+Vcs-Browser: https://salsa.debian.org/debian/pkgconf
+
+Package: pkgconf
+Architecture: any
+Multi-Arch: foreign
+Depends:
+ libdpkg-perl,
+ dpkg-dev,
+ ${misc:Depends},
+ ${perl:Depends},
+ ${shlibs:Depends}
+Provides:
+ pkg-config (= 0.29-1)
+Breaks:
+ pkg-config (>= 0.29-1)
+Description: manage compile and link flags for libraries
+ pkgconf is a replacement for pkg-config, a system for managing library
+ compile and link flags that works with automake and autoconf.
+ .
+ pkgconf does not bundle any third-party libraries or depend on any
+ third-party libraries.
+
+Package: libpkgconf
+Section: oldlibs
+Architecture: any
+Multi-Arch: same
+Depends: libpkgconf-dev (>= ${binary:Version}), ${misc:Depends}
+Description: development files for pkgconf (transitional package)
+ pkgconf is a replacement for pkg-config, a system for managing library
+ compile and link flags that works with automake and autoconf.
+ .
+ pkgconf does not bundle any third-party libraries or depend on any
+ third-party libraries.
+ .
+ This package is a dummy transitional package and may be safely removed.
+
+Package: libpkgconf3
+Section: libs
+Architecture: any
+Multi-Arch: same
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+Description: shared library for pkgconf
+ pkgconf is a replacement for pkg-config, a system for managing library
+ compile and link flags that works with automake and autoconf.
+ .
+ pkgconf does not bundle any third-party libraries or depend on any
+ third-party libraries.
+ .
+ libpkgconf is a library which provides access to most of pkgconf's
+ functionality, to allow other tooling such as compilers and IDEs to
+ discover and use libraries configured by pkgconf.
+ .
+ This package ships a shared library for libpkgconf.
+
+Package: libpkgconf-dev
+Section: libdevel
+Architecture: any
+Multi-Arch: same
+Depends:
+ libpkgconf3 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends}
+Provides: libpkgconf
+Breaks: pkgconf (<< 1.6.0-2), libpkgconf (<< 1.6.3-5)
+Replaces: pkgconf (<< 1.6.0-2), libpkgconf (<< 1.6.3-5)
+Description: development files for pkgconf
+ pkgconf is a replacement for pkg-config, a system for managing library
+ compile and link flags that works with automake and autoconf.
+ .
+ pkgconf does not bundle any third-party libraries or depend on any
+ third-party libraries.
+ .
+ libpkgconf is a library which provides access to most of pkgconf's
+ functionality, to allow other tooling such as compilers and IDEs to
+ discover and use libraries configured by pkgconf.
+ .
+ This package ships development files for libpkgconf.

@@ -1,0 +1,264 @@
+pkgconf (1.8.0-1) unstable; urgency=medium
+
+  [ Andrej Shadura ]
+  * New upstream release.
+
+  [ Simon McVittie ]
+  * d/rules: Factor out computation of system library path into a script
+  * d/system-libdirs.sh: Always list directories with and without /usr.
+    This avoids potentially unwanted -L flags in --libs if pkgconf is
+    built on a merged-/usr system and used on a non-merged-/usr system.
+    (Closes: #992622)
+
+ -- Andrej Shadura <andrewsh@debian.org>  Mon, 23 Aug 2021 14:48:27 +0200
+
+pkgconf (1.7.4~git20210206+dcf529b-3) unstable; urgency=medium
+
+  * Make the Hurd build succeed despite a kyua crash.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Thu, 18 Feb 2021 15:39:47 +0100
+
+pkgconf (1.7.4~git20210206+dcf529b-2) unstable; urgency=medium
+
+  * Fix build on Hurd.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Thu, 18 Feb 2021 13:03:32 +0100
+
+pkgconf (1.7.4~git20210206+dcf529b-1) unstable; urgency=medium
+
+  * New upstream snapshot.
+  * Update gbp.conf.
+  * Update the homepage.
+  * Remove no longer needed HOME override, dh_auto_test does this
+    automatically in compat level 13.
+  * Update the copyright years.
+  * Update the upstream metadata.
+  * Add missing ${misc:Depends} to Depends for libpkgconf.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Thu, 18 Feb 2021 09:56:16 +0100
+
+pkgconf (1.7.3-2) unstable; urgency=medium
+
+  * Make sure the test framework atf-sh is installed during
+    the build process.
+  * Don’t install kyua if build profile nocheck.
+  * Make test failures non-fatal for now.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Mon, 04 Jan 2021 10:31:41 +0100
+
+pkgconf (1.7.3-1) unstable; urgency=medium
+
+  [ Andrej Shadura ]
+  * New upstream release.
+  * Drop patches applied upstream.
+  * Update the copyrights as per upstream commit 03e5d0f.
+  * Bump debhelper from old 12 to 13.
+  * Set upstream metadata fields: Repository.
+  * Update standards version to 4.5.0, no changes needed.
+
+  [ Andrea Bolognani ]
+  * Add Depends on dpkg-dev (Closes: #952526)
+
+  [ Nicolas Braud-Santoni ]
+  * Enable upstream's testsuite.
+  * debian/rules: Provide a temporary “homedir” for tests.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Sat, 02 Jan 2021 17:32:05 +0100
+
+pkgconf (1.6.3-5) unstable; urgency=medium
+
+  [ Alex Syrnikov ]
+  * Enable build for shared library.
+    - Split libpkgconf into two packages.
+    - Add symbols file.
+
+  [ Andrej Shadura ]
+  * Bump Standards-Version to 4.4.1.
+  * Set upstream metadata fields: Bug-Submit.
+  * Drop unnecessary usage of dh-autoreconf (dh 12 uses it by
+    default anyway).
+  * Declare Breaks against an older libpkgconf as well.
+  * Ship a dummy transitional package to ease the transition.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Thu, 19 Dec 2019 14:55:51 +0100
+
+pkgconf (1.6.3-4) unstable; urgency=medium
+
+  [ Nicolas Braud-Santoni ]
+  * debian/copyright:
+    - Avoid repeating the text for the ISC license
+    - Update paths for relocated files
+    - Identify the X11 license for install-sh
+  * Lintian: Override package-contains-empty-directory when intentional.
+  * debian/control: Update upstream homepage (moved away from Github).
+  * Patch issues in manpages.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Thu, 18 Jul 2019 11:20:46 -0300
+
+pkgconf (1.6.3-3) unstable; urgency=medium
+
+  * Declare Breaks/Replaces against the old package versions (Closes:
+    #923575).
+
+ -- Andrej Shadura <andrewsh@debian.org>  Fri, 12 Jul 2019 15:40:03 +0200
+
+pkgconf (1.6.3-2) unstable; urgency=medium
+
+  * Merge changes from experimental:
+    - Split libpkgconf into a separate package.
+    - Install libpkgconf docs.
+    - Install NEWS.
+    - Use debhelper 12.
+    - Use ${perl:Depends}.
+    - Wrap and sort debian/control.
+    - Refresh debian/copyright.
+    - Fix the pkg-config manpage symlink.
+    - Don’t install .la
+  * Bump Standards-Version.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Fri, 12 Jul 2019 15:24:37 +0200
+
+pkgconf (1.6.3-1) unstable; urgency=medium
+
+  [ Nicolas Braud-Santoni ]
+  * New upstream release (2019-07-12):
+    + Numerous bug fixes, including:
+      - An empty PKG_CONFIG_LIBDIR didn't eliminate the default search paths.
+      - Fix version tokenisation.
+    + Added missing option (--modversion) to the pkgconf(1) manpage.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Fri, 12 Jul 2019 15:13:23 +0200
+
+pkgconf (1.6.0-2) experimental; urgency=medium
+
+  * Split libpkgconf into a separate package.
+  * Install libpkgconf docs.
+  * Install NEWS.
+  * Use debhelper 12.
+  * Use ${perl:Depends}.
+  * Wrap and sort debian/control.
+  * Refresh debian/copyright.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Wed, 20 Feb 2019 20:20:22 +0100
+
+pkgconf (1.6.0-1) unstable; urgency=medium
+
+  [ Ondřej Nový ]
+  * d/copyright: Use https protocol in Format field.
+  * d/rules: Remove trailing whitespaces.
+
+  [ Andrej Shadura ]
+  * New upstream release.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Wed, 20 Feb 2019 20:01:57 +0100
+
+pkgconf (1.4.2-2) unstable; urgency=medium
+
+  * Disable tests until kyua is in Debian. (Closes: #894157)
+  * Update the Maintainer field.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Mon, 26 Mar 2018 22:56:07 +0200
+
+pkgconf (1.4.2-1) unstable; urgency=medium
+
+  * New upstream version (Closes: #893079, #893080).
+  * Drop the patch applied upstream.
+  * Add gbp.conf.
+  * Update the watch file.
+  * Delete binary cruft on clean.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Mon, 26 Mar 2018 14:04:56 +0200
+
+pkgconf (0.9.12-6) unstable; urgency=medium
+
+  * Handle --define-variable as pkg-config does (Closes: #862509).
+
+ -- Andrew Shadura <andrewsh@debian.org>  Sat, 13 May 2017 22:43:01 +0200
+
+pkgconf (0.9.12-5) unstable; urgency=medium
+
+  * Add previously missing Depends: libdpkg-perl (Closes: #856525).
+
+ -- Andrew Shadura <andrewsh@debian.org>  Thu, 02 Mar 2017 09:41:54 +0100
+
+pkgconf (0.9.12-4) unstable; urgency=medium
+
+  * Store pkg-config architecture in /usr/lib/pkgconf.multiarch, not
+    pkg-config.multiarch.
+
+ -- Andrew Shadura <andrewsh@debian.org>  Sun, 26 Feb 2017 13:37:28 +0100
+
+pkgconf (0.9.12-3) unstable; urgency=medium
+
+  * Upload to unstable.
+  * Rename dpkg hook and its config to not conflict with pkg-config.
+
+ -- Andrew Shadura <andrewsh@debian.org>  Sun, 26 Feb 2017 10:57:06 +0100
+
+pkgconf (0.9.12-2) experimental; urgency=medium
+
+  * Provide pkg-config-compatible cross-building interface:
+    - Import crosswrapper and dpkghook from pkg-config
+    - Declare Breaks against pkg-config >= 0.29-1
+    - Provide pkg-config = 0.29-1
+    - Store pkg-config architecture in /usr/lib/pkg-config.multiarch and
+      pick that up in the crosswrapper.
+    - Set Multi-Arch: foreign.
+
+ -- Andrew Shadura <andrewsh@debian.org>  Fri, 24 Feb 2017 18:42:43 +0100
+
+pkgconf (0.9.12-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Make the build reproducible (Closes: #792285).
+  * Sync crosswrapper script from pkg-config to search multiarch paths,
+    traditional cross-compilation paths, arch-independent paths, and
+    /usr/local counterparts.
+
+ -- Andrew Shadura <andrewsh@debian.org>  Wed, 22 Jul 2015 17:42:28 +0200
+
+pkgconf (0.9.7-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Drop old patches.
+
+ -- Andrew Shadura <andrewsh@debian.org>  Wed, 08 Oct 2014 15:50:35 +0200
+
+pkgconf (0.9.5-4) unstable; urgency=medium
+
+  * Apply upstream patch to handle --with-system-includedir and
+    --with-system-libdir correctly (Closes: #742634).
+
+ -- Andrew Shadura <andrewsh@debian.org>  Sat, 07 Jun 2014 23:40:46 +0200
+
+pkgconf (0.9.5-3) unstable; urgency=low
+
+  * Try to handle transition from broken versions of the package
+    more smoothly (#739370).
+
+ -- Andrew Shadura <andrewsh@debian.org>  Tue, 18 Feb 2014 08:54:06 +0100
+
+pkgconf (0.9.5-2) unstable; urgency=low
+
+  * Install pkg-config-crosswrapper in a proper directory (Closes: #739370).
+
+ -- Andrew Shadura <andrewsh@debian.org>  Mon, 17 Feb 2014 23:52:51 +0100
+
+pkgconf (0.9.5-1) unstable; urgency=medium
+
+  * New upstream release (Closes: #734491).
+
+ -- Andrew Shadura <andrewsh@debian.org>  Sun, 16 Feb 2014 14:05:31 +0100
+
+pkgconf (0.9.4-2) unstable; urgency=medium
+
+  * Drop useless dependency on pkg-config, ship needed files and divert
+    them as required instead.
+
+ -- Andrew Shadura <andrewsh@debian.org>  Sat, 08 Feb 2014 13:09:36 +0100
+
+pkgconf (0.9.4-1) unstable; urgency=low
+
+  * Initial Release (Closes: #702745).
+
+ -- Andrew Shadura <andrewsh@debian.org>  Sun, 05 Jan 2014 01:03:56 +0100
