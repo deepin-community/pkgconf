@@ -41,9 +41,15 @@ endif
 
 override_dh_auto_install:
 	dh_auto_install
-	chmod +x debian/pkg-config-crosswrapper debian/pkgconf-dpkghook
 	rm debian/tmp/usr/lib/*/*.la
-	echo $(DEB_HOST_MULTIARCH) > debian/pkgconf/usr/lib/pkgconf.multiarch
+	sed \
+		-e "s^@GNU_TYPE@^$(DEB_HOST_GNU_TYPE)^g" \
+		-e "s^@MULTIARCH@^$(DEB_HOST_MULTIARCH)^g" \
+		-e "s^@SYSTEM_LIBDIRS@^$(SYSTEM_LIBDIRS)^g" \
+		debian/personality.in > debian/pkgconf/usr/share/pkgconfig/personality.d/$(DEB_HOST_GNU_TYPE).personality
+ifneq ($(DEB_HOST_MULTIARCH),$(DEB_HOST_GNU_TYPE))
+	ln -s ${DEB_HOST_GNU_TYPE}.personality debian/pkgconf/usr/share/pkgconfig/personality.d/${DEB_HOST_MULTIARCH}.personality
+endif
 
 override_dh_installchangelogs:
 	dh_installchangelogs NEWS

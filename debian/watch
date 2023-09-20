@@ -1,2 +1,3 @@
-version=3
-https://distfiles.dereferenced.org/pkgconf/pkgconf-(.*)\.t.*
+version=4
+
+https://distfiles.dereferenced.org/@PACKAGE@/@PACKAGE@@ANY_VERSION@@ARCHIVE_EXT@

@@ -1,0 +1,23 @@
+From: Ariadne Conill <ariadne@dereferenced.org>
+Date: Sun, 22 Jan 2023 10:46:27 +0000
+Subject: cli: if --exists is specified, require the full dependency graph to validate
+
+Bug-Debian: https://bugs.debian.org/1026781
+---
+ cli/main.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/cli/main.c b/cli/main.c
+index 837fa8b..99421e7 100644
+--- a/cli/main.c
++++ b/cli/main.c
+@@ -1039,6 +1039,9 @@ main(int argc, char *argv[])
+ 	if ((want_flags & PKG_STATIC) == PKG_STATIC || personality->want_default_static)
+ 		want_client_flags |= (PKGCONF_PKG_PKGF_SEARCH_PRIVATE | PKGCONF_PKG_PKGF_MERGE_PRIVATE_FRAGMENTS);
+ 
++	if ((want_flags & PKG_EXISTS) == PKG_EXISTS)
++		want_client_flags |= PKGCONF_PKG_PKGF_SEARCH_PRIVATE;
++
+ 	if ((want_flags & PKG_SHARED) == PKG_SHARED)
+ 		want_client_flags &= ~(PKGCONF_PKG_PKGF_SEARCH_PRIVATE | PKGCONF_PKG_PKGF_MERGE_PRIVATE_FRAGMENTS);
+ 

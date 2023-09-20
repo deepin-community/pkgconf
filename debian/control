@@ -7,43 +7,52 @@ Build-Depends:
  kyua <!nocheck>,
  atf-sh <!nocheck>
 Homepage: http://pkgconf.org/
-Standards-Version: 4.5.0
+Standards-Version: 4.6.0
 Vcs-Git: https://salsa.debian.org/debian/pkgconf.git
 Vcs-Browser: https://salsa.debian.org/debian/pkgconf
+Rules-Requires-Root: no
 
 Package: pkgconf
 Architecture: any
-Multi-Arch: foreign
+Multi-Arch: same
 Depends:
- libdpkg-perl,
- dpkg-dev,
+ pkgconf-bin,
  ${misc:Depends},
  ${perl:Depends},
  ${shlibs:Depends}
+Replaces:
+ pkg-config (<< 1.8)
 Provides:
- pkg-config (= 0.29-1)
+ pkg-config (= ${binary:Version})
 Breaks:
- pkg-config (>= 0.29-1)
+ pkg-config (<< 1.8)
 Description: manage compile and link flags for libraries
- pkgconf is a replacement for pkg-config, a system for managing library
- compile and link flags that works with automake and autoconf.
+ pkgconf is an implementation of the pkg-config system, which helps to configure
+ compiler and linker flags for development frameworks.
  .
- pkgconf does not bundle any third-party libraries or depend on any
- third-party libraries.
+ pkgconf is a replacement for pkg-config, providing additional functionality
+ while also maintaining compatibility.
 
-Package: libpkgconf
-Section: oldlibs
+Package: pkgconf-bin
 Architecture: any
-Multi-Arch: same
-Depends: libpkgconf-dev (>= ${binary:Version}), ${misc:Depends}
-Description: development files for pkgconf (transitional package)
- pkgconf is a replacement for pkg-config, a system for managing library
- compile and link flags that works with automake and autoconf.
+Multi-Arch: foreign
+Depends:
+ ${misc:Depends},
+ ${perl:Depends},
+ ${shlibs:Depends}
+Breaks:
+ pkgconf (<< 1.8.0-2~),
+Replaces:
+ pkgconf (<< 1.8.0-2~),
+ pkg-config (<< 1.8),
+Description: manage compile and link flags for libraries (binaries)
+ pkgconf is an implementation of the pkg-config system, which helps to configure
+ compiler and linker flags for development frameworks.
  .
- pkgconf does not bundle any third-party libraries or depend on any
- third-party libraries.
+ pkgconf is a replacement for pkg-config, providing additional functionality
+ while also maintaining compatibility.
  .
- This package is a dummy transitional package and may be safely removed.
+ This package contains the pkgconf binary and related files.
 
 Package: libpkgconf3
 Section: libs
@@ -53,11 +62,11 @@ Depends:
  ${shlibs:Depends},
  ${misc:Depends},
 Description: shared library for pkgconf
- pkgconf is a replacement for pkg-config, a system for managing library
- compile and link flags that works with automake and autoconf.
+ pkgconf is an implementation of the pkg-config system, which helps to configure
+ compiler and linker flags for development frameworks.
  .
- pkgconf does not bundle any third-party libraries or depend on any
- third-party libraries.
+ pkgconf is a replacement for pkg-config, providing additional functionality
+ while also maintaining compatibility.
  .
  libpkgconf is a library which provides access to most of pkgconf's
  functionality, to allow other tooling such as compilers and IDEs to
@@ -77,14 +86,31 @@ Provides: libpkgconf
 Breaks: pkgconf (<< 1.6.0-2), libpkgconf (<< 1.6.3-5)
 Replaces: pkgconf (<< 1.6.0-2), libpkgconf (<< 1.6.3-5)
 Description: development files for pkgconf
- pkgconf is a replacement for pkg-config, a system for managing library
- compile and link flags that works with automake and autoconf.
+ pkgconf is an implementation of the pkg-config system, which helps to configure
+ compiler and linker flags for development frameworks.
  .
- pkgconf does not bundle any third-party libraries or depend on any
- third-party libraries.
+ pkgconf is a replacement for pkg-config, providing additional functionality
+ while also maintaining compatibility.
  .
  libpkgconf is a library which provides access to most of pkgconf's
  functionality, to allow other tooling such as compilers and IDEs to
  discover and use libraries configured by pkgconf.
  .
  This package ships development files for libpkgconf.
+
+Package: pkg-config
+Architecture: any
+Multi-Arch: same
+Section: oldlibs
+Depends:
+ pkgconf (>= 1.8.0-7~),
+ ${misc:Depends},
+Description: manage compile and link flags for libraries (transitional package)
+ pkgconf is an implementation of the pkg-config system, which helps to configure
+ compiler and linker flags for development frameworks.
+ .
+ pkgconf is a replacement for pkg-config, providing additional functionality
+ while also maintaining compatibility.
+ .
+ This package only provides a dependency link to the pkgconf package to help
+ with package upgrades. It can be safely removed.

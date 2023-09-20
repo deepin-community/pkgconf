@@ -10,7 +10,7 @@ Copyright: 2011—2021 pkgconf authors
 License: ISC
 
 Files: debian/*
-Copyright: 2013—2021 Andrej Shadura <andrewsh@debian.org>
+Copyright: 2013—2022 Andrej Shadura <andrewsh@debian.org>
 License: ISC
 
 Files: libpkgconf/bsdstubs.c

@@ -1,0 +1,249 @@
+From: Andrej Shadura <andrew.shadura@collabora.co.uk>
+Date: Sun, 22 Jan 2023 11:51:04 +0100
+Subject: doc: Regenerate the documentation for libpkgconf
+
+Signed-off-by: Andrej Shadura <andrew.shadura@collabora.co.uk>
+---
+ doc/libpkgconf-client.rst      | 20 +++++++++++++++++---
+ doc/libpkgconf-dependency.rst  |  3 +++
+ doc/libpkgconf-path.rst        | 12 ++++++++++--
+ doc/libpkgconf-personality.rst | 17 +++++++++++++++++
+ doc/libpkgconf-pkg.rst         | 12 ++----------
+ doc/libpkgconf-tuple.rst       | 32 --------------------------------
+ doc/libpkgconf.rst             |  1 +
+ 7 files changed, 50 insertions(+), 47 deletions(-)
+ create mode 100644 doc/libpkgconf-personality.rst
+
+diff --git a/doc/libpkgconf-client.rst b/doc/libpkgconf-client.rst
+index d75df354634b..6816fdf4b341 100644
+--- a/doc/libpkgconf-client.rst
++++ b/doc/libpkgconf-client.rst
+@@ -9,21 +9,32 @@ in parallel.
+ Client objects are not thread safe, in other words, a client object should not be shared across
+ thread boundaries.
+ 
+-.. c:function:: void pkgconf_client_init(pkgconf_client_t *client, pkgconf_error_handler_func_t error_handler)
++.. c:function:: void pkgconf_client_dir_list_build(pkgconf_client_t *client)
++
++   Bootstraps the package search paths.  If the ``PKGCONF_PKG_PKGF_ENV_ONLY`` `flag` is set on the client,
++   then only the ``PKG_CONFIG_PATH`` environment variable will be used, otherwise both the
++   ``PKG_CONFIG_PATH`` and ``PKG_CONFIG_LIBDIR`` environment variables will be used.
++
++   :param pkgconf_client_t* client: The pkgconf client object to bootstrap.
++   :return: nothing
++
++.. c:function:: void pkgconf_client_init(pkgconf_client_t *client, pkgconf_error_handler_func_t error_handler, void *error_handler_data, const pkgconf_cross_personality_t *personality)
+ 
+    Initialise a pkgconf client object.
+ 
+    :param pkgconf_client_t* client: The client to initialise.
+    :param pkgconf_error_handler_func_t error_handler: An optional error handler to use for logging errors.
+    :param void* error_handler_data: user data passed to optional error handler
++   :param pkgconf_cross_personality_t* personality: the cross-compile personality to use for defaults
+    :return: nothing
+ 
+-.. c:function:: pkgconf_client_t* pkgconf_client_new(pkgconf_error_handler_func_t error_handler)
++.. c:function:: pkgconf_client_t* pkgconf_client_new(pkgconf_error_handler_func_t error_handler, void *error_handler_data, const pkgconf_cross_personality_t *personality)
+ 
+    Allocate and initialise a pkgconf client object.
+ 
+    :param pkgconf_error_handler_func_t error_handler: An optional error handler to use for logging errors.
+    :param void* error_handler_data: user data passed to optional error handler
++   :param pkgconf_cross_personality_t* personality: cross-compile personality to use
+    :return: A pkgconf client object.
+    :rtype: pkgconf_client_t*
+ 
+@@ -97,11 +108,14 @@ thread boundaries.
+    :return: true if the warn handler processed the message, else false.
+    :rtype: bool
+ 
+-.. c:function:: bool pkgconf_trace(const pkgconf_client_t *client, const char *format, ...)
++.. c:function:: bool pkgconf_trace(const pkgconf_client_t *client, const char *filename, size_t len, const char *funcname, const char *format, ...)
+ 
+    Report a message to a client-registered trace handler.
+ 
+    :param pkgconf_client_t* client: The pkgconf client object to report the trace message to.
++   :param char* filename: The file the function is in.
++   :param size_t lineno: The line number currently being executed.
++   :param char* funcname: The function name to use.
+    :param char* format: A printf-style format string to use for formatting the trace message.
+    :return: true if the trace handler processed the message, else false.
+    :rtype: bool
+diff --git a/doc/libpkgconf-dependency.rst b/doc/libpkgconf-dependency.rst
+index 1ee3e091d5dd..a049ff56b21c 100644
+--- a/doc/libpkgconf-dependency.rst
++++ b/doc/libpkgconf-dependency.rst
+@@ -14,6 +14,7 @@ The `dependency` module provides support for building `dependency lists` (the ba
+    :param char* package: The package `atom` to set on the dependency node.
+    :param char* version: The package `version` to set on the dependency node.
+    :param pkgconf_pkg_comparator_t compare: The comparison operator to set on the dependency node.
++   :param uint flags: Any flags to attach to the dependency node.
+    :return: A dependency node.
+    :rtype: pkgconf_dependency_t *
+ 
+@@ -41,6 +42,7 @@ The `dependency` module provides support for building `dependency lists` (the ba
+    :param pkgconf_client_t* client: The client object that owns the package this dependency list belongs to.
+    :param pkgconf_list_t* deplist_head: The dependency list to populate with dependency nodes.
+    :param char* depends: The dependency data to parse.
++   :param uint flags: Any flags to attach to the dependency nodes.
+    :return: nothing
+ 
+ .. c:function:: void pkgconf_dependency_parse(const pkgconf_client_t *client, pkgconf_pkg_t *pkg, pkgconf_list_t *deplist, const char *depends)
+@@ -53,4 +55,5 @@ The `dependency` module provides support for building `dependency lists` (the ba
+    :param pkgconf_pkg_t* pkg: The package object that owns this dependency list.
+    :param pkgconf_list_t* deplist: The dependency list to populate with dependency nodes.
+    :param char* depends: The dependency data to parse.
++   :param uint flags: Any flags to attach to the dependency nodes.
+    :return: nothing
+diff --git a/doc/libpkgconf-path.rst b/doc/libpkgconf-path.rst
+index e923f61056e2..04789440a2d3 100644
+--- a/doc/libpkgconf-path.rst
++++ b/doc/libpkgconf-path.rst
+@@ -25,12 +25,12 @@ variables.
+    :return: number of path nodes added to the path list
+    :rtype: size_t
+ 
+-.. c:function:: size_t pkgconf_path_build_from_environ(const char *environ, const char *fallback, pkgconf_list_t *dirlist)
++.. c:function:: size_t pkgconf_path_build_from_environ(const char *envvarname, const char *fallback, pkgconf_list_t *dirlist)
+ 
+    Adds the paths specified in an environment variable to a path list.  If the environment variable is not set,
+    an optional default set of paths is added.
+ 
+-   :param char* environ: The environment variable to look up.
++   :param char* envvarname: The environment variable to look up.
+    :param char* fallback: The fallback paths to use if the environment variable is not set.
+    :param pkgconf_list_t* dirlist: The path list to add the path nodes to.
+    :param bool filter: Whether to perform duplicate filtering.
+@@ -46,6 +46,14 @@ variables.
+    :return: true if the path list has a matching prefix, otherwise false
+    :rtype: bool
+ 
++.. c:function:: void pkgconf_path_copy_list(pkgconf_list_t *dst, const pkgconf_list_t *src)
++
++   Copies a path list to another path list.
++
++   :param pkgconf_list_t* dst: The path list to copy to.
++   :param pkgconf_list_t* src: The path list to copy from.
++   :return: nothing
++
+ .. c:function:: void pkgconf_path_free(pkgconf_list_t *dirlist)
+ 
+    Releases any path nodes attached to the given path list.
+diff --git a/doc/libpkgconf-personality.rst b/doc/libpkgconf-personality.rst
+new file mode 100644
+index 000000000000..004c1a120cf7
+--- /dev/null
++++ b/doc/libpkgconf-personality.rst
+@@ -0,0 +1,17 @@
++
++libpkgconf `personality` module
++=========================
++
++.. c:function:: const pkgconf_cross_personality_t *pkgconf_cross_personality_default(void)
++
++   Returns the default cross-compile personality.
++
++   :rtype: pkgconf_cross_personality_t*
++   :return: the default cross-compile personality
++
++.. c:function:: pkgconf_cross_personality_t *pkgconf_cross_personality_find(const char *triplet)
++
++   Attempts to find a cross-compile personality given a triplet.
++
++   :rtype: pkgconf_cross_personality_t*
++   :return: the default cross-compile personality
+diff --git a/doc/libpkgconf-pkg.rst b/doc/libpkgconf-pkg.rst
+index e3d083e31052..5860b5ddc455 100644
+--- a/doc/libpkgconf-pkg.rst
++++ b/doc/libpkgconf-pkg.rst
+@@ -5,15 +5,6 @@ libpkgconf `pkg` module
+ The `pkg` module provides dependency resolution services and the overall `.pc` file parsing
+ routines.
+ 
+-.. c:function:: void pkgconf_pkg_dir_list_build(pkgconf_client_t *client)
+-
+-   Bootstraps the package search paths.  If the ``PKGCONF_PKG_PKGF_ENV_ONLY`` `flag` is set on the client,
+-   then only the ``PKG_CONFIG_PATH`` environment variable will be used, otherwise both the
+-   ``PKG_CONFIG_PATH`` and ``PKG_CONFIG_LIBDIR`` environment variables will be used.
+-
+-   :param pkgconf_client_t* client: The pkgconf client object to bootstrap.
+-   :return: nothing
+-
+ .. c:function:: pkgconf_pkg_t *pkgconf_pkg_new_from_file(const pkgconf_client_t *client, const char *filename, FILE *f)
+ 
+    Parse a .pc file into a pkgconf_pkg_t object structure.
+@@ -126,7 +117,7 @@ routines.
+    :return: On success, ``PKGCONF_PKG_ERRF_OK`` (0), else an error code.
+    :rtype: unsigned int
+ 
+-.. c:function:: unsigned int pkgconf_pkg_traverse(pkgconf_client_t *client, pkgconf_pkg_t *root, pkgconf_pkg_traverse_func_t func, void *data, int maxdepth)
++.. c:function:: unsigned int pkgconf_pkg_traverse(pkgconf_client_t *client, pkgconf_pkg_t *root, pkgconf_pkg_traverse_func_t func, void *data, int maxdepth, unsigned int skip_flags)
+ 
+    Walk and resolve the dependency graph up to `maxdepth` levels.
+ 
+@@ -135,6 +126,7 @@ routines.
+    :param pkgconf_pkg_traverse_func_t func: A traversal function to call for each resolved node in the dependency graph.
+    :param void* data: An opaque pointer to data to be passed to the traversal function.
+    :param int maxdepth: The maximum depth to walk the dependency graph for.  -1 means infinite recursion.
++   :param uint skip_flags: Skip over dependency nodes containing the specified flags.  A setting of 0 skips no dependency nodes.
+    :return: ``PKGCONF_PKG_ERRF_OK`` on success, else an error code.
+    :rtype: unsigned int
+ 
+diff --git a/doc/libpkgconf-tuple.rst b/doc/libpkgconf-tuple.rst
+index b87751de9de2..f5b3f4aa16e9 100644
+--- a/doc/libpkgconf-tuple.rst
++++ b/doc/libpkgconf-tuple.rst
+@@ -42,38 +42,6 @@ attached to a given client object.
+    :param char* kv: The variable in the form of ``key=value``.
+    :return: nothing
+ 
+-.. c:function:: pkgconf_tuple_t *pkgconf_tuple_add(const pkgconf_client_t *client, pkgconf_list_t *list, const char *key, const char *value, bool parse)
+-
+-   Optionally parse and then define a variable.
+-
+-   :param pkgconf_client_t* client: The pkgconf client object to access.
+-   :param pkgconf_list_t* list: The variable list to add the new variable to.
+-   :param char* key: The name of the variable being added.
+-   :param char* value: The value of the variable being added.
+-   :param bool parse: Whether or not to parse the value for variable substitution.
+-   :return: a variable object
+-   :rtype: pkgconf_tuple_t *
+-
+-.. c:function:: char *pkgconf_tuple_find(const pkgconf_client_t *client, pkgconf_list_t *list, const char *key)
+-
+-   Look up a variable in a variable list.
+-
+-   :param pkgconf_client_t* client: The pkgconf client object to access.
+-   :param pkgconf_list_t* list: The variable list to search.
+-   :param char* key: The variable name to search for.
+-   :return: the value of the variable or ``NULL``
+-   :rtype: char *
+-
+-.. c:function:: char *pkgconf_tuple_parse(const pkgconf_client_t *client, pkgconf_list_t *vars, const char *value)
+-
+-   Parse an expression for variable substitution.
+-
+-   :param pkgconf_client_t* client: The pkgconf client object to access.
+-   :param pkgconf_list_t* list: The variable list to search for variables (along side the global variable list).
+-   :param char* value: The ``key=value`` string to parse.
+-   :return: the variable data with any variables substituted
+-   :rtype: char *
+-
+ .. c:function:: void pkgconf_tuple_free_entry(pkgconf_tuple_t *tuple, pkgconf_list_t *list)
+ 
+    Deletes a variable object, removing it from any variable lists and releasing any memory associated
+diff --git a/doc/libpkgconf.rst b/doc/libpkgconf.rst
+index e95bb136ba34..37167f0f25fe 100644
+--- a/doc/libpkgconf.rst
++++ b/doc/libpkgconf.rst
+@@ -11,6 +11,7 @@ libpkgconf - an API for managing `pkg-config` modules
+    libpkgconf-dependency
+    libpkgconf-fragment
+    libpkgconf-path
++   libpkgconf-personality
+    libpkgconf-pkg
+    libpkgconf-queue
+    libpkgconf-tuple
+-- 
+2.39.0
+
