@@ -1,4 +1,5 @@
 libpkgconf.so.3 libpkgconf3 #MINVER#
+* Build-Depends-Package: libpkgconf-dev
  pkgconf_argv_free@Base 1.6.3
  pkgconf_argv_split@Base 1.6.3
  pkgconf_audit_log@Base 1.6.3
@@ -30,6 +31,7 @@ libpkgconf.so.3 libpkgconf3 #MINVER#
  pkgconf_client_set_warn_handler@Base 1.6.3
  pkgconf_compare_version@Base 1.6.3
  pkgconf_cross_personality_default@Base 1.6.3
+ pkgconf_cross_personality_deinit@Base 1.8.0
  pkgconf_cross_personality_find@Base 1.6.3
  pkgconf_default_error_handler@Base 1.6.3
  pkgconf_dependency_add@Base 1.6.3

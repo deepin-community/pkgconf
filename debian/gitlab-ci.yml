@@ -1,0 +1,59 @@
+include:
+ - https://salsa.debian.org/salsa-ci-team/pipeline/raw/master/salsa-ci.yml
+ - https://salsa.debian.org/salsa-ci-team/pipeline/raw/master/pipeline-jobs.yml
+
+# debsums fails to understand remove-on-upgrade, see https://bugs.debian.org/993714
+piuparts:
+  allow_failure: true
+
+.test-upgrade:
+  stage: test
+  image: $SALSA_CI_IMAGES_GENERIC_TESTS
+  before_script:
+    - apt-get install -qy devscripts
+    - dpkg --add-architecture i386
+    - dpkg --add-architecture arm64
+    - mkdir -p pkg-config
+    - ( cd pkg-config; debsnap -v --binary pkg-config 0.29.2-1 -d . -a amd64 )
+    - mkdir -p pkgconf
+    - test -z "$PKGCONF_VERSION" || (
+        cd pkgconf;
+        debsnap -v --binary pkgconf     $PKGCONF_VERSION -d . -a amd64;
+        debsnap -v --binary libpkgconf3 $PKGCONF_VERSION -d . -a amd64
+      )
+  after_script:
+    - ls -l /usr/bin/*pkg*conf*
+  variables:
+    GIT_STRATEGY: none
+  needs:
+    - job: build
+      artifacts: true
+
+test-direct-upgrade:
+  extends: .test-upgrade
+  script:
+    - apt-get install -qy ./pkg-config/*.deb
+    - apt-get install -qy ${WORKING_DIR}/*.deb
+
+test-gradual-upgrade:
+  extends: .test-upgrade
+  parallel:
+    matrix:
+      - PKGCONF_VERSION:
+        - 1.7.4~git20210206+dcf529b-3
+        - 1.8.0-1
+  script:
+    - apt-get install -qy ./pkg-config/*.deb
+    - apt-get install -qy ./pkgconf/*.deb
+    - apt-get install -qy ${WORKING_DIR}/*.deb
+
+test-pkgconf-upgrade:
+  extends: .test-upgrade
+  parallel:
+    matrix:
+      - PKGCONF_VERSION:
+        - 1.7.4~git20210206+dcf529b-3
+        - 1.8.0-1
+  script:
+    - apt-get install -qy ./pkgconf/*.deb
+    - apt-get install -qy ${WORKING_DIR}/*.deb

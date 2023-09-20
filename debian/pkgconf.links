@@ -1,1 +1,5 @@
-usr/bin/pkgconf usr/bin/pkg-config
+/usr/bin/pkgconf /usr/bin/${DEB_HOST_GNU_TYPE}-pkg-config
+/usr/bin/pkgconf /usr/bin/${DEB_HOST_GNU_TYPE}-pkgconf
+/usr/bin/pkgconf /usr/bin/${DEB_HOST_MULTIARCH}-pkg-config
+/usr/bin/pkgconf /usr/bin/${DEB_HOST_MULTIARCH}-pkgconf
+/usr/bin/pkgconf /usr/bin/pkg-config

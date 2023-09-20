@@ -1,6 +1,2 @@
-debian/pkg-config-crosswrapper usr/share
-debian/pkgconf-dpkghook usr/share
-debian/pkgconf-hook-config etc/dpkg/dpkg.cfg.d/
-usr/bin
 usr/share/aclocal
 usr/share/man

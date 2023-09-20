@@ -1,9 +1,0 @@
-#! /bin/sh
-
-set -e
-
-#DEBHELPER#
-
-if test "$1" = remove; then
-    /usr/share/pkgconf-dpkghook remove
-fi

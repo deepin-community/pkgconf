@@ -1,0 +1,4 @@
+Triplet: @GNU_TYPE@
+DefaultSearchPaths: /usr/local/lib/@MULTIARCH@/pkgconfig:/usr/local/lib/pkgconfig:/usr/local/share/pkgconfig:/usr/lib/@MULTIARCH@/pkgconfig:/usr/lib/pkgconfig:/usr/share/pkgconfig
+SystemIncludePaths: /usr/include
+SystemLibraryPaths: @SYSTEM_LIBDIRS@

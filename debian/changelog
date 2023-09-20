@@ -1,3 +1,102 @@
+pkgconf (1.8.1-1) unstable; urgency=high
+
+  * New upstream release.
+    - Fix a buffer overflow vulnerability involving very large variable
+      expansions (CVE-2023-24056).
+  * Apply an upstream patch to validate the dependency graph when --exists
+    is specified (Closes: #1026781).
+  * Regenerate the documentation for libpkgconf.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Sun, 22 Jan 2023 12:06:42 +0100
+
+pkgconf (1.8.0-12) unstable; urgency=medium
+
+  * Temporarily unapply the upstream patch defining PKG_VERSION
+    (Closes: #1026216).
+
+ -- Andrej Shadura <andrewsh@debian.org>  Fri, 16 Dec 2022 16:04:09 +0100
+
+pkgconf (1.8.0-11) unstable; urgency=medium
+
+  * Import upstream patches to update pkg.m4 (Closes: #1024336).
+
+ -- Andrej Shadura <andrewsh@debian.org>  Thu, 17 Nov 2022 22:04:50 +0100
+
+pkgconf (1.8.0-10) unstable; urgency=medium
+
+  * Upload to unstable.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Fri, 11 Nov 2022 16:08:25 +0100
+
+pkgconf (1.8.0-9) experimental; urgency=medium
+
+  * Add an upstream patch to fix sysroot_dir handling.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Fri, 21 Oct 2022 19:19:43 +0200
+
+pkgconf (1.8.0-8) experimental; urgency=medium
+
+  * Override non-etc-file-marked-as-conffile remove-on-upgrade
+    /etc/dpkg/dpkg.cfg.d/*.
+  * Override manpage lintian warnings.
+  * Update package-contains-empty-directory override.
+  * Bump debian/watch version to 4.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Sun, 02 Oct 2022 18:06:09 +0200
+
+pkgconf (1.8.0-7) experimental; urgency=medium
+
+  * Replace the Freedesktop.org implementation of pkg-config with pkgconf.
+    See #1020799 for more details.
+    - Provide a binary package pkg-config to provide a transition path from
+      pkg-config.
+    - Remove diversions and leftover symlinks on pkg-config upgrade.
+    - Remove the pkg-config dpkg hook on upgrade.
+  * Preinst script should not fail if *-pkg-config is not a symlink.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Sun, 02 Oct 2022 13:15:07 +0200
+
+pkgconf (1.8.0-6) unstable; urgency=medium
+
+  * Ignore whitespace indentation in .pc files (Closes: #1016922).
+
+ -- Andrej Shadura <andrewsh@debian.org>  Fri, 30 Sep 2022 17:34:39 +0200
+
+pkgconf (1.8.0-5) unstable; urgency=medium
+
+  * Personalities should use GNU type triplets, not multiarch triplets.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Thu, 01 Sep 2022 10:03:33 +0200
+
+pkgconf (1.8.0-4) unstable; urgency=medium
+
+  * Declare Breaks against non-split pkgconf package (Closes: #1018813).
+
+ -- Andrej Shadura <andrewsh@debian.org>  Wed, 31 Aug 2022 13:18:21 +0200
+
+pkgconf (1.8.0-3) unstable; urgency=medium
+
+  * Remove obsolete conffile /etc/dpkg/dpkg.cfg.d/pkgconf-hook-config.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Mon, 29 Aug 2022 15:27:46 +0200
+
+pkgconf (1.8.0-2) unstable; urgency=medium
+
+  * Split pkgconf into pkgconf and pkgconf-bin and drop the dpkg hook.
+  * Update the package descriptions.
+  * Drop pkg-config-crosswrapper, use personalities instead
+    (Closes: #985667, #892999).
+  * Remove old diversions on upgrade.
+  * Bump the broken pkg-config version to avoid breaking ourselves.
+  * Drop the transitional package libpkgconf.
+  * Add missing symbol pkgconf_cross_personality_deinit.
+  * Update standards version to 4.6.0, no changes needed.
+  * Set Rules-Requires-Root: no.
+  * Update copyright years.
+  * Delete leftover symlinks pointing at crosswrapper.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Wed, 24 Aug 2022 13:34:10 +0200
+
 pkgconf (1.8.0-1) unstable; urgency=medium
 
   [ Andrej Shadura ]

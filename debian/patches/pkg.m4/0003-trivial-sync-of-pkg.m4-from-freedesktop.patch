@@ -1,0 +1,71 @@
+From: Eli Schwartz <eschwartz93@gmail.com>
+Date: Sun, 3 Jul 2022 11:13:33 -0400
+Subject: trivial sync of pkg.m4 from freedesktop
+
+This contains 3 changes, mostly inconsequential:
+
+- fix some spelling issues in the comments
+
+  https://gitlab.freedesktop.org/pkg-config/pkg-config/-/commit/eb866ade77d933c3237a5c9e2114ca65c3baa537
+
+- bump the serial number; upstream rationale is very :shrug: but it is
+  what it is:
+  > There aren't any significant changes here, but this will cause aclocal
+  > to get the latest version.
+
+  https://gitlab.freedesktop.org/pkg-config/pkg-config/-/commit/677e9248753d31c4b7ceed7805ccdc3fc508e980
+
+- make the status log for PKG_CHECK_MODULES say "checking for <mod>..."
+  instead of "checking for <VAR>..."
+
+  https://gitlab.freedesktop.org/pkg-config/pkg-config/-/commit/3b96e7434c6d3b86443782efde053fb2ae2f7fba
+
+There are additional whitespace-only changes that could be synced, and
+were explicitly synced in commit 95b683c864f89ba5d2f02b0bbf8b07e0ffcecbce
+but then undone in commit 360a818f2f2741a276f3acae6022b3d045e62f1f so
+rather than fighting over it, are simply ignored. Diffing against the
+freedesktop version of pkg.m4 will therefore show additional
+inconsistencies.
+---
+ pkg.m4 | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/pkg.m4 b/pkg.m4
+index d3f228e..c88ef6f 100644
+--- a/pkg.m4
++++ b/pkg.m4
+@@ -1,5 +1,5 @@
+-# pkg.m4 - Macros to locate and utilise pkg-config.   -*- Autoconf -*-
+-# serial 11 (pkg-config-0.29.1)
++# pkg.m4 - Macros to locate and use pkg-config.   -*- Autoconf -*-
++# serial 12 (pkg-config-0.29.2)
+ 
+ dnl Copyright © 2004 Scott James Remnant <scott@netsplit.com>.
+ dnl Copyright © 2012-2015 Dan Nicholson <dbn.lists@gmail.com>
+@@ -41,7 +41,7 @@ dnl
+ dnl See the "Since" comment for each macro you use to see what version
+ dnl of the macros you require.
+ m4_defun([PKG_PREREQ],
+-[m4_define([PKG_MACROS_VERSION], [0.29.1])
++[m4_define([PKG_MACROS_VERSION], [0.29.2])
+ m4_if(m4_version_compare(PKG_MACROS_VERSION, [$1]), -1,
+     [m4_fatal([pkg.m4 version $1 or higher is required but ]PKG_MACROS_VERSION[ found])])
+ ])dnl PKG_PREREQ
+@@ -86,7 +86,7 @@ dnl Check to see whether a particular set of modules exists. Similar to
+ dnl PKG_CHECK_MODULES(), but does not set variables or print errors.
+ dnl
+ dnl Please remember that m4 expands AC_REQUIRE([PKG_PROG_PKG_CONFIG])
+-dnl only at the first occurence in configure.ac, so if the first place
++dnl only at the first occurrence in configure.ac, so if the first place
+ dnl it's called might be skipped (such as if it is within an "if", you
+ dnl have to call PKG_CHECK_EXISTS manually
+ AC_DEFUN([PKG_CHECK_EXISTS],
+@@ -142,7 +142,7 @@ AC_ARG_VAR([$1][_CFLAGS], [C compiler flags for $1, overriding pkg-config])dnl
+ AC_ARG_VAR([$1][_LIBS], [linker flags for $1, overriding pkg-config])dnl
+ 
+ pkg_failed=no
+-AC_MSG_CHECKING([for $1])
++AC_MSG_CHECKING([for $2])
+ 
+ _PKG_CONFIG([$1][_CFLAGS], [cflags], [$2])
+ _PKG_CONFIG([$1][_LIBS], [libs], [$2])
