@@ -1,0 +1,23 @@
+#!/bin/sh
+
+cp * "$AUTOPKGTEST_TMP" -R
+cd "$AUTOPKGTEST_TMP"
+
+DEB_HOST_GNU_TYPE=$(dpkg-architecture -qDEB_HOST_GNU_TYPE)
+
+autoreconf -fi 2> /dev/null
+./configure 2> /dev/null
+
+echo "make test tools and run tests against newly built package"
+make check
+
+pcpath=$(cat /usr/share/pkgconfig/personality.d/$DEB_HOST_GNU_TYPE.personality |grep DefaultSearchPaths |cut -f 2 -d " ")
+sed "s#pcpath=.*#pcpath=\"$pcpath\"#g" -i tests/test_env.sh
+
+echo "run tests against system installed package"
+
+rm -rf pkgconf pkg-config
+cp /usr/bin/pkgconf .
+cp /usr/bin/pkg-config .
+
+kyua --config=none test --kyuafile=Kyuafile --build-root=.
