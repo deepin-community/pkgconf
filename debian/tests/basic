@@ -1,0 +1,11 @@
+#!/bin/sh
+
+set -eu
+
+if [ -n "${DEB_HOST_GNU_TYPE:-}" ]; then
+    CROSS_COMPILE="$DEB_HOST_GNU_TYPE-"
+else
+    CROSS_COMPILE=
+fi
+
+"${CROSS_COMPILE}pkg-config" --cflags --libs sdl2

@@ -1,0 +1,4 @@
+# Mitigate DEP-17 P6. Delete this after trixie has been released as
+# multipath-tools/bookworm was the last package to install to /lib/pkgconfig
+# and stopped doing so in 0.9.4-4.
+interest-noawait /lib/pkgconfig

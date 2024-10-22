@@ -3,3 +3,4 @@ pkg.m4/0001-pkg.m4-Unified-indentation-in-PKG_CHECK_MODULES.patch
 pkg.m4/0003-trivial-sync-of-pkg.m4-from-freedesktop.patch
 fix-exists-print-errors.patch
 regenerate-docs-for-libpkgconf.patch
+1077671-fix-Walloc-size.patch

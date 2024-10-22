@@ -1,0 +1,215 @@
+From d454f62c73e069199e4a706dcd50be580f06e5c7 Mon Sep 17 00:00:00 2001
+From: Sam James <sam@gentoo.org>
+Date: Sun, 5 Nov 2023 22:17:02 +0000
+Subject: [PATCH] libpkgconf: fix -Walloc-size
+
+GCC 14 introduces a new -Walloc-size included in -Wextra which gives:
+```
+libpkgconf/personality.c:260:11: warning: allocation of insufficient size '1' for type 'pkgconf_cross_personality_t' {aka 'struct pkgconf_cross_personality_'} with size '48' [-Walloc-size]
+libpkgconf/queue.c:46:33: warning: allocation of insufficient size '1' for type 'pkgconf_queue_t' {aka'struct pkgconf_queue_'} with size '16' [-Walloc-size]
+libpkgconf/client.c:164:33: warning: allocation of insufficient size '1' for type 'pkgconf_client_t' {aka 'struct pkgconf_client_'} with size '120' [-Walloc-size]
+libpkgconf/path.c:105:14: warning: allocation of insufficient size '1' for type 'pkgconf_path_t' {aka 'struct pkgconf_path_'} with size '24' [-Walloc-size]
+libpkgconf/path.c:237:22: warning: allocation of insufficient size '1' for type 'pkgconf_path_t' {aka 'struct pkgconf_path_'} with size '24' [-Walloc-size]
+libpkgconf/tuple.c:239:34: warning: allocation of insufficient size '1' for type 'pkgconf_tuple_t' {aka 'struct pkgconf_tuple_'} with size '24' [-Walloc-size]
+libpkgconf/dependency.c:133:13: warning: allocation of insufficient size '1' for type 'pkgconf_dependency_t' {aka 'struct pkgconf_dependency_'} with size '44' [-Walloc-size]
+libpkgconf/dependency.c:472:17: warning: allocation of insufficient size '1' for type 'pkgconf_dependency_t' {aka 'struct pkgconf_dependency_'} with size '44' [-Walloc-size]
+libpkgconf/fragment.c:146:22: warning: allocation of insufficient size '1' for type 'pkgconf_fragment_t' {aka 'struct pkgconf_fragment_'} with size '24' [-Walloc-size]
+libpkgconf/fragment.c:195:22: warning: allocation of insufficient size '1' for type 'pkgconf_fragment_t' {aka 'struct pkgconf_fragment_'} with size '24' [-Walloc-size]
+libpkgconf/fragment.c:356:14: warning: allocation of insufficient size '1' for type 'pkgconf_fragment_t' {aka 'struct pkgconf_fragment_'} with size '24' [-Walloc-size]
+libpkgconf/pkg.c:422:13: warning: allocation of insufficient size '1' for type 'pkgconf_pkg_t' {aka 'struct pkgconf_pkg_'} with size '188' [-Walloc-size]
+libpkgconf/client.c:164:33: warning: allocation of insufficient size '1' for type 'pkgconf_client_t' {aka 'struct pkgconf_client_'} with size '224' [-Walloc-size]
+libpkgconf/personality.c:260:11: warning: allocation of insufficient size '1' for type 'pkgconf_cross_personality_t' {aka 'struct pkgconf_cross_personality_'} with size '96' [-Walloc-size]
+libpkgconf/dependency.c:133:13: warning: allocation of insufficient size '1' for type 'pkgconf_dependency_t' {aka 'struct pkgconf_dependency_'} with size '80' [-Walloc-size]
+libpkgconf/dependency.c:472:17: warning: allocation of insufficient size '1' for type 'pkgconf_dependency_t' {aka 'struct pkgconf_dependency_'} with size '80' [-Walloc-size]
+libpkgconf/path.c:105:14: warning: allocation of insufficient size '1' for type 'pkgconf_path_t' {aka 'struct pkgconf_path_'} with size '48' [-Walloc-size]
+libpkgconf/path.c:237:22: warning: allocation of insufficient size '1' for type 'pkgconf_path_t' {aka 'struct pkgconf_path_'} with size '48' [-Walloc-size]
+libpkgconf/queue.c:46:33: warning: allocation of insufficient size '1' for type 'pkgconf_queue_t' {aka 'struct pkgconf_queue_'} with size '32' [-Walloc-size]
+libpkgconf/tuple.c:239:34: warning: allocation of insufficient size '1' for type 'pkgconf_tuple_t' {aka 'struct pkgconf_tuple_'} with size '48' [-Walloc-size]
+libpkgconf/fragment.c:146:22: warning: allocation of insufficient size '1' for type 'pkgconf_fragment_t' {aka 'struct pkgconf_fragment_'} with size '48' [-Walloc-size]
+libpkgconf/fragment.c:195:22: warning: allocation of insufficient size '1' for type 'pkgconf_fragment_t' {aka 'struct pkgconf_fragment_'} with size '48' [-Walloc-size]
+libpkgconf/fragment.c:356:14: warning: allocation of insufficient size '1' for type 'pkgconf_fragment_t' {aka 'struct pkgconf_fragment_'} with size '48' [-Walloc-size]
+libpkgconf/pkg.c:422:13: warning: allocation of insufficient size '1' for type 'pkgconf_pkg_t' {aka 'struct pkgconf_pkg_'} with size '360' [-Walloc-size]
+```
+
+The calloc prototype is:
+```
+void *calloc(size_t nmemb, size_t size);
+    ```
+
+So, just swap the number of members and size arguments to match the prototype, as
+we're initialising 1 struct of size `sizeof(struct ...)`. GCC then sees we're not
+doing anything wrong.
+
+The only exception there is for argv which I fixed while at it.
+
+Signed-off-by: Sam James <sam@gentoo.org>
+---
+ libpkgconf/argvsplit.c   | 2 +-
+ libpkgconf/client.c      | 2 +-
+ libpkgconf/dependency.c  | 4 ++--
+ libpkgconf/fragment.c    | 8 ++++----
+ libpkgconf/path.c        | 4 ++--
+ libpkgconf/personality.c | 2 +-
+ libpkgconf/pkg.c         | 4 ++--
+ libpkgconf/queue.c       | 2 +-
+ libpkgconf/tuple.c       | 4 ++--
+ 9 files changed, 16 insertions(+), 16 deletions(-)
+
+Origin: backport, https://github.com/pkgconf/pkgconf/commit/d454f62c73e069199e4a706dcd50be580f06e5c7
+Bug-Ubuntu: https://bugs.launchpad.net/ubuntu/+source/pkgconf/+bug/2075361
+Bug-Debian: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=1077671
+Last-Update: 2024-07-31
+
+--- a/libpkgconf/argvsplit.c
++++ b/libpkgconf/argvsplit.c
+@@ -72,7 +72,7 @@
+ 
+ 	memset(buf, 0, strlen(src) + 1);
+ 
+-	*argv = calloc(sizeof (void *), argv_size);
++	*argv = calloc(argv_size, sizeof (void *));
+ 	(*argv)[argc_count] = dst_iter;
+ 
+ 	while (*src_iter)
+--- a/libpkgconf/client.c
++++ b/libpkgconf/client.c
+@@ -159,7 +159,7 @@
+ pkgconf_client_t *
+ pkgconf_client_new(pkgconf_error_handler_func_t error_handler, void *error_handler_data, const pkgconf_cross_personality_t *personality)
+ {
+-	pkgconf_client_t *out = calloc(sizeof(pkgconf_client_t), 1);
++	pkgconf_client_t *out = calloc(1, sizeof(pkgconf_client_t));
+ 	pkgconf_client_init(out, error_handler, error_handler_data, personality);
+ 	return out;
+ }
+--- a/libpkgconf/dependency.c
++++ b/libpkgconf/dependency.c
+@@ -123,7 +123,7 @@
+ {
+ 	pkgconf_dependency_t *dep;
+ 
+-	dep = calloc(sizeof(pkgconf_dependency_t), 1);
++	dep = calloc(1, sizeof(pkgconf_dependency_t));
+ 	dep->package = pkgconf_strndup(package, package_sz);
+ 
+ 	if (version_sz != 0)
+--- a/libpkgconf/fragment.c
++++ b/libpkgconf/fragment.c
+@@ -139,7 +139,7 @@
+ 
+ 	if (strlen(string) > 1 && !pkgconf_fragment_is_special(string))
+ 	{
+-		frag = calloc(sizeof(pkgconf_fragment_t), 1);
++		frag = calloc(1, sizeof(pkgconf_fragment_t));
+ 
+ 		frag->type = *(string + 1);
+ 		frag->data = pkgconf_fragment_copy_munged(client, string + 2);
+@@ -188,7 +188,7 @@
+ 			}
+ 		}
+ 
+-		frag = calloc(sizeof(pkgconf_fragment_t), 1);
++		frag = calloc(1, sizeof(pkgconf_fragment_t));
+ 
+ 		frag->type = 0;
+ 		frag->data = strdup(string);
+@@ -349,7 +349,7 @@
+ 	else if (!is_private && !pkgconf_fragment_can_merge_back(base, client->flags, is_private) && (pkgconf_fragment_lookup(list, base) != NULL))
+ 		return;
+ 
+-	frag = calloc(sizeof(pkgconf_fragment_t), 1);
++	frag = calloc(1, sizeof(pkgconf_fragment_t));
+ 
+ 	frag->type = base->type;
+ 	frag->merged = base->merged;
+@@ -423,7 +423,7 @@
+ 	if (frag->data == NULL)
+ 		return NULL;
+ 
+-	out = dst = calloc(outlen, 1);
++	out = dst = calloc(1, outlen);
+ 
+ 	for (; *src; src++)
+ 	{
+--- a/libpkgconf/path.c
++++ b/libpkgconf/path.c
+@@ -102,7 +102,7 @@
+ 		return;
+ #endif
+ 
+-	node = calloc(sizeof(pkgconf_path_t), 1);
++	node = calloc(1, sizeof(pkgconf_path_t));
+ 	node->path = strdup(path);
+ 
+ #ifdef PKGCONF_CACHE_INODES
+@@ -234,7 +234,7 @@
+ 	{
+ 		pkgconf_path_t *srcpath = n->data, *path;
+ 
+-		path = calloc(sizeof(pkgconf_path_t), 1);
++		path = calloc(1, sizeof(pkgconf_path_t));
+ 		path->path = strdup(srcpath->path);
+ 
+ #ifdef PKGCONF_CACHE_INODES
+--- a/libpkgconf/personality.c
++++ b/libpkgconf/personality.c
+@@ -227,7 +227,7 @@
+ 	if (f == NULL)
+ 		return NULL;
+ 
+-	p = calloc(sizeof(pkgconf_cross_personality_t), 1);
++	p = calloc(1, sizeof(pkgconf_cross_personality_t));
+ 	if (triplet != NULL)
+ 		p->name = strdup(triplet);
+ 	pkgconf_parser_parse(f, p, personality_parser_ops, personality_warn_func, pathbuf);
+--- a/libpkgconf/pkg.c
++++ b/libpkgconf/pkg.c
+@@ -227,7 +227,7 @@
+ static char *
+ convert_path_to_value(const char *path)
+ {
+-	char *buf = calloc((strlen(path) + 1) * 2, 1);
++	char *buf = calloc(1, (strlen(path) + 1) * 2);
+ 	char *bptr = buf;
+ 	const char *i;
+ 
+@@ -397,7 +397,7 @@
+ 	pkgconf_pkg_t *pkg;
+ 	char *idptr;
+ 
+-	pkg = calloc(sizeof(pkgconf_pkg_t), 1);
++	pkg = calloc(1, sizeof(pkgconf_pkg_t));
+ 	pkg->owner = client;
+ 	pkg->filename = strdup(filename);
+ 	pkg->pc_filedir = pkg_get_parent_dir(pkg);
+--- a/libpkgconf/queue.c
++++ b/libpkgconf/queue.c
+@@ -48,7 +48,7 @@
+ void
+ pkgconf_queue_push(pkgconf_list_t *list, const char *package)
+ {
+-	pkgconf_queue_t *pkgq = calloc(sizeof(pkgconf_queue_t), 1);
++	pkgconf_queue_t *pkgq = calloc(1, sizeof(pkgconf_queue_t));
+ 
+ 	pkgq->package = strdup(package);
+ 	pkgconf_node_insert_tail(&pkgq->iter, pkgq, list);
+--- a/libpkgconf/tuple.c
++++ b/libpkgconf/tuple.c
+@@ -139,7 +139,7 @@
+ static char *
+ dequote(const char *value)
+ {
+-	char *buf = calloc((strlen(value) + 1) * 2, 1);
++	char *buf = calloc(1, (strlen(value) + 1) * 2);
+ 	char *bptr = buf;
+ 	const char *i;
+ 	char quote = 0;
+@@ -180,7 +180,7 @@
+ pkgconf_tuple_add(const pkgconf_client_t *client, pkgconf_list_t *list, const char *key, const char *value, bool parse)
+ {
+ 	char *dequote_value;
+-	pkgconf_tuple_t *tuple = calloc(sizeof(pkgconf_tuple_t), 1);
++	pkgconf_tuple_t *tuple = calloc(1, sizeof(pkgconf_tuple_t));
+ 
+ 	pkgconf_tuple_find_delete(list, key);
+ 

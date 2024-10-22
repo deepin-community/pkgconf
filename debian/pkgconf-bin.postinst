@@ -1,0 +1,12 @@
+#!/bin/sh
+
+set -e
+
+if test "$1" = configure -o "$1" = triggered && ! test -d "$DPKG_ROOT/usr/lib/pkgconfig"; then
+	# Mitigate DEP-17 P6. Delete this after trixie has been released as
+	# multipath-tools/bookworm was the last package to install to
+	# /lib/pkgconfig and stopped doing so in 0.9.4-4.
+	install -d -o root -g root -m 0755 "$DPKG_ROOT/usr/lib/pkgconfig"
+fi
+
+#DEBHELPER#

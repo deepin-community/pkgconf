@@ -1,0 +1,5 @@
+Tests: testsuite
+Depends: @builddeps@, pkg-config, pkgconf-bin
+
+Tests: basic
+Depends: libsdl2-dev
