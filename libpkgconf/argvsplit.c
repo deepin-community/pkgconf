@@ -59,7 +59,10 @@ pkgconf_argv_free(char **argv)
 int
 pkgconf_argv_split(const char *src, int *argc, char ***argv)
 {
-	char *buf = malloc(strlen(src) + 1);
+	char *buf = calloc(1, strlen(src) + 1);
+	if (buf == NULL)
+		return -1;
+
 	const char *src_iter;
 	char *dst_iter;
 	int argc_count = 0;
@@ -70,9 +73,13 @@ pkgconf_argv_split(const char *src, int *argc, char ***argv)
 	src_iter = src;
 	dst_iter = buf;
 
-	memset(buf, 0, strlen(src) + 1);
+	*argv = calloc(argv_size, sizeof (void *));
+	if (*argv == NULL)
+	{
+		free(buf);
+		return -1;
+	}
 
-	*argv = calloc(sizeof (void *), argv_size);
 	(*argv)[argc_count] = dst_iter;
 
 	while (*src_iter)
@@ -80,7 +87,7 @@ pkgconf_argv_split(const char *src, int *argc, char ***argv)
 		if (escaped)
 		{
 			/* POSIX: only \CHAR is special inside a double quote if CHAR is {$, `, ", \, newline}. */
-			if (quote == '\"')
+			if (quote == '"')
 			{
 				if (!(*src_iter == '$' || *src_iter == '`' || *src_iter == '"' || *src_iter == '\\'))
 					*dst_iter++ = '\\';
@@ -88,7 +95,9 @@ pkgconf_argv_split(const char *src, int *argc, char ***argv)
 				*dst_iter++ = *src_iter;
 			}
 			else
+			{
 				*dst_iter++ = *src_iter;
+			}
 
 			escaped = false;
 		}
@@ -101,7 +110,7 @@ pkgconf_argv_split(const char *src, int *argc, char ***argv)
 			else
 				*dst_iter++ = *src_iter;
 		}
-		else if (isspace((unsigned int)*src_iter))
+		else if (isspace((unsigned char)*src_iter))
 		{
 			if ((*argv)[argc_count] != NULL)
 			{
@@ -118,11 +127,9 @@ pkgconf_argv_split(const char *src, int *argc, char ***argv)
 		}
 		else switch(*src_iter)
 		{
-#ifndef _WIN32
 			case '\\':
 				escaped = true;
 				break;
-#endif
 
 			case '\"':
 			case '\'':

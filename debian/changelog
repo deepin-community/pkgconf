@@ -1,3 +1,36 @@
+pkgconf (2.5.1-4) unstable; urgency=medium
+
+  * Drop Debian patches: the solver’s behavior is now stricter: all
+    pkg-config dependencies must be satisfiable unless they are placed
+    in Requires.internal.
+
+ -- Andrej Shadura <andrewsh@debian.org>  Fri, 13 Feb 2026 08:57:14 +0100
+
+pkgconf (2.5.1-3) unstable; urgency=medium
+
+  * Revert upstream commit a79952a08 (Closes: #1126924).
+
+ -- Andrej Shadura <andrewsh@debian.org>  Tue, 10 Feb 2026 09:06:20 +0100
+
+pkgconf (2.5.1-2) unstable; urgency=medium
+
+  * Upload to unstable (Closes: #1108845, #1068379, #1068426).
+
+ -- Andrej Shadura <andrewsh@debian.org>  Wed, 28 Jan 2026 14:13:45 +0100
+
+pkgconf (2.5.1-1) experimental; urgency=medium
+
+  * New upstream release.
+  * Add new bomtool package.
+  * Aadd myself to Uploaders.
+  * Bump the soname libpkgconf3 -> libpkgconf7.
+  * debian/copyright: Fix typo in upstream contact.
+  * Drop upstreamed patches.
+  * Drop old trigger, unneeded after trixie.
+  * debian/watch: Update host name.
+
+ -- Andrea Pappacoda <tachi@debian.org>  Sun, 10 Aug 2025 22:28:17 +0200
+
 pkgconf (1.8.1-4) unstable; urgency=medium
 
   * Team upload.

@@ -1,2 +1,4 @@
 usr/share/aclocal
-usr/share/man
+usr/share/man/man1/pkgconf.1*
+usr/share/man/man5/
+usr/share/man/man7/

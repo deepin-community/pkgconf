@@ -33,33 +33,41 @@
 void
 pkgconf_parser_parse(FILE *f, void *data, const pkgconf_parser_operand_func_t *ops, const pkgconf_parser_warn_func_t warnfunc, const char *filename)
 {
-	char readbuf[PKGCONF_BUFSIZE];
+	pkgconf_buffer_t readbuf = PKGCONF_BUFFER_INITIALIZER;
 	size_t lineno = 0;
+	bool continue_reading = true;
 
-	while (pkgconf_fgetline(readbuf, PKGCONF_BUFSIZE, f) != NULL)
+	while (continue_reading)
 	{
 		char op, *p, *key, *value;
 		bool warned_key_whitespace = false, warned_value_whitespace = false;
 
+		continue_reading = pkgconf_fgetline(&readbuf, f);
 		lineno++;
 
-		p = readbuf;
-		while (*p && isspace((unsigned int)*p))
+		p = readbuf.base;
+		if (p == NULL)
+			continue;
+		while (*p && isspace((unsigned char)*p))
 			p++;
-		if (*p && p != readbuf)
+		if (*p && p != readbuf.base)
 		{
 			warnfunc(data, "%s:" SIZE_FMT_SPECIFIER ": warning: whitespace encountered while parsing key section\n",
 				filename, lineno);
 			warned_key_whitespace = true;
 		}
 		key = p;
-		while (*p && (isalpha((unsigned int)*p) || isdigit((unsigned int)*p) || *p == '_' || *p == '.'))
+		while (*p && (isalpha((unsigned char)*p) || isdigit((unsigned char)*p) || *p == '_' || *p == '.'))
 			p++;
 
-		if (!isalpha((unsigned int)*key) && !isdigit((unsigned int)*p))
+		if (!isalpha((unsigned char)*key) &&
+		    !isdigit((unsigned char)*p))
+		{
+			pkgconf_buffer_reset(&readbuf);
 			continue;
+		}
 
-		while (*p && isspace((unsigned int)*p))
+		while (*p && isspace((unsigned char)*p))
 		{
 			if (!warned_key_whitespace)
 			{
@@ -80,12 +88,12 @@ pkgconf_parser_parse(FILE *f, void *data, const pkgconf_parser_operand_func_t *o
 			p++;
 		}
 
-		while (*p && isspace((unsigned int)*p))
+		while (*p && isspace((unsigned char)*p))
 			p++;
 
 		value = p;
 		p = value + (strlen(value) - 1);
-		while (*p && isspace((unsigned int) *p) && p > value)
+		while (*p && isspace((unsigned char) *p) && p > value)
 		{
 			if (!warned_value_whitespace && op == '=')
 			{
@@ -99,7 +107,9 @@ pkgconf_parser_parse(FILE *f, void *data, const pkgconf_parser_operand_func_t *o
 		}
 		if (ops[(unsigned char) op])
 			ops[(unsigned char) op](data, lineno, key, value);
+
+		pkgconf_buffer_reset(&readbuf);
 	}
 
-	fclose(f);
+	pkgconf_buffer_finalize(&readbuf);
 }

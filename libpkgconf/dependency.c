@@ -73,7 +73,7 @@ find_colliding_dependency(const pkgconf_dependency_t *dep, const pkgconf_list_t 
 }
 
 static inline pkgconf_dependency_t *
-add_or_replace_dependency_node(const pkgconf_client_t *client, pkgconf_dependency_t *dep, pkgconf_list_t *list)
+add_or_replace_dependency_node(pkgconf_client_t *client, pkgconf_dependency_t *dep, pkgconf_list_t *list)
 {
 	char depbuf[PKGCONF_ITEM_SIZE];
 	pkgconf_dependency_t *dep2 = find_colliding_dependency(dep, list);
@@ -92,7 +92,7 @@ add_or_replace_dependency_node(const pkgconf_client_t *client, pkgconf_dependenc
 		{
 			PKGCONF_TRACE(client, "dropping dependency [%s]@%p because of collision", depbuf, dep);
 
-			free(dep);
+			pkgconf_dependency_unref(dep->owner, dep);
 			return NULL;
 		}
 		else if (dep2->flags && dep->flags == 0)
@@ -100,7 +100,7 @@ add_or_replace_dependency_node(const pkgconf_client_t *client, pkgconf_dependenc
 			PKGCONF_TRACE(client, "dropping dependency [%s]@%p because of collision", depbuf2, dep2);
 
 			pkgconf_node_delete(&dep2->iter, list);
-			free(dep2);
+			pkgconf_dependency_unref(dep2->owner, dep2);
 		}
 		else
 			/* If both dependencies have equal strength, we keep both, because of situations like:
@@ -113,17 +113,27 @@ add_or_replace_dependency_node(const pkgconf_client_t *client, pkgconf_dependenc
 	}
 
 	PKGCONF_TRACE(client, "added dependency [%s] to list @%p; flags=%x", dependency_to_str(dep, depbuf, sizeof depbuf), list, dep->flags);
-	pkgconf_node_insert_tail(&dep->iter, dep, list);
+	pkgconf_node_insert_tail(&dep->iter, pkgconf_dependency_ref(dep->owner, dep), list);
 
+	/* This dependency is intentionally unowned.
+	 *
+	 * Internally we have no use for the returned type, and usually just
+	 * discard it. However, there is a publig pkgconf_dependency_add
+	 * function, which references this return value before returning it,
+	 * giving ownership at that point.
+	 */
 	return dep;
 }
 
 static inline pkgconf_dependency_t *
-pkgconf_dependency_addraw(const pkgconf_client_t *client, pkgconf_list_t *list, const char *package, size_t package_sz, const char *version, size_t version_sz, pkgconf_pkg_comparator_t compare, unsigned int flags)
+pkgconf_dependency_addraw(pkgconf_client_t *client, pkgconf_list_t *list, const char *package, size_t package_sz, const char *version, size_t version_sz, pkgconf_pkg_comparator_t compare, unsigned int flags)
 {
 	pkgconf_dependency_t *dep;
 
-	dep = calloc(sizeof(pkgconf_dependency_t), 1);
+	dep = calloc(1, sizeof(pkgconf_dependency_t));
+	if (dep == NULL)
+		return NULL;
+
 	dep->package = pkgconf_strndup(package, package_sz);
 
 	if (version_sz != 0)
@@ -131,6 +141,8 @@ pkgconf_dependency_addraw(const pkgconf_client_t *client, pkgconf_list_t *list, 
 
 	dep->compare = compare;
 	dep->flags = flags;
+	dep->owner = client;
+	dep->refcount = 0;
 
 	return add_or_replace_dependency_node(client, dep, list);
 }
@@ -152,12 +164,12 @@ pkgconf_dependency_addraw(const pkgconf_client_t *client, pkgconf_list_t *list, 
  *    :rtype: pkgconf_dependency_t *
  */
 pkgconf_dependency_t *
-pkgconf_dependency_add(const pkgconf_client_t *client, pkgconf_list_t *list, const char *package, const char *version, pkgconf_pkg_comparator_t compare, unsigned int flags)
+pkgconf_dependency_add(pkgconf_client_t *client, pkgconf_list_t *list, const char *package, const char *version, pkgconf_pkg_comparator_t compare, unsigned int flags)
 {
-	if (version != NULL)
-		return pkgconf_dependency_addraw(client, list, package, strlen(package), version, strlen(version), compare, flags);
-
-	return pkgconf_dependency_addraw(client, list, package, strlen(package), NULL, 0, compare, flags);
+	pkgconf_dependency_t *dep;
+	dep = pkgconf_dependency_addraw(client, list, package, strlen(package), version,
+					version != NULL ? strlen(version) : 0, compare, flags);
+	return pkgconf_dependency_ref(dep->owner, dep);
 }
 
 /*
@@ -180,9 +192,80 @@ pkgconf_dependency_append(pkgconf_list_t *list, pkgconf_dependency_t *tail)
 /*
  * !doc
  *
+ * .. c:function:: void pkgconf_dependency_free_one(pkgconf_dependency_t *dep)
+ *
+ *    Frees a dependency node.
+ *
+ *    :param pkgconf_dependency_t* dep: The dependency node to free.
+ *    :return: nothing
+ */
+void
+pkgconf_dependency_free_one(pkgconf_dependency_t *dep)
+{
+	if (dep->match != NULL)
+		pkgconf_pkg_unref(dep->match->owner, dep->match);
+
+	if (dep->package != NULL)
+		free(dep->package);
+
+	if (dep->version != NULL)
+		free(dep->version);
+
+	free(dep);
+}
+
+/*
+ * !doc
+ *
+ * .. c:function:: pkgconf_dependency_t *pkgconf_dependency_ref(pkgconf_client_t *owner, pkgconf_dependency_t *dep)
+ *
+ *    Increases a dependency node's refcount.
+ *
+ *    :param pkgconf_client_t* owner: The client object which owns the memory of this dependency node.
+ *    :param pkgconf_dependency_t* dep: The dependency to increase the refcount of.
+ *    :return: the dependency node on success, else NULL
+ */
+pkgconf_dependency_t *
+pkgconf_dependency_ref(pkgconf_client_t *client, pkgconf_dependency_t *dep)
+{
+	if (client != dep->owner)
+		return NULL;
+
+	dep->refcount++;
+	PKGCONF_TRACE(client, "%s refcount@%p: %d", dep->package, dep, dep->refcount);
+	return dep;
+}
+
+/*
+ * !doc
+ *
+ * .. c:function:: void pkgconf_dependency_unref(pkgconf_client_t *owner, pkgconf_dependency_t *dep)
+ *
+ *    Decreases a dependency node's refcount and frees it if necessary.
+ *
+ *    :param pkgconf_client_t* owner: The client object which owns the memory of this dependency node.
+ *    :param pkgconf_dependency_t* dep: The dependency to decrease the refcount of.
+ *    :return: nothing
+ */
+void
+pkgconf_dependency_unref(pkgconf_client_t *client, pkgconf_dependency_t *dep)
+{
+	if (client != dep->owner)
+		return;
+
+	--dep->refcount;
+	PKGCONF_TRACE(client, "%s refcount@%p: %d", dep->package, dep, dep->refcount);
+
+	if (dep->refcount <= 0)
+		pkgconf_dependency_free_one(dep);
+}
+
+/*
+ * !doc
+ *
  * .. c:function:: void pkgconf_dependency_free(pkgconf_list_t *list)
  *
- *    Release a dependency list and it's child dependency nodes.
+ *    Release a dependency list and its child dependency nodes.
  *
  *    :param pkgconf_list_t* list: The dependency list to release.
  *    :return: nothing
@@ -196,17 +279,11 @@ pkgconf_dependency_free(pkgconf_list_t *list)
 	{
 		pkgconf_dependency_t *dep = node->data;
 
-		if (dep->match != NULL)
-			pkgconf_pkg_unref(NULL, dep->match);
-
-		if (dep->package != NULL)
-			free(dep->package);
-
-		if (dep->version != NULL)
-			free(dep->version);
-
-		free(dep);
+		pkgconf_node_delete(&dep->iter, list);
+		pkgconf_dependency_unref(dep->owner, dep);
 	}
+
+	pkgconf_list_zero(list);
 }
 
 /*
@@ -225,24 +302,34 @@ pkgconf_dependency_free(pkgconf_list_t *list)
  *    :return: nothing
  */
 void
-pkgconf_dependency_parse_str(const pkgconf_client_t *client, pkgconf_list_t *deplist_head, const char *depends, unsigned int flags)
+pkgconf_dependency_parse_str(pkgconf_client_t *client, pkgconf_list_t *deplist_head, const char *depends, unsigned int flags)
 {
 	parse_state_t state = OUTSIDE_MODULE;
 	pkgconf_pkg_comparator_t compare = PKGCONF_CMP_ANY;
 	char cmpname[PKGCONF_ITEM_SIZE];
-	char buf[PKGCONF_BUFSIZE];
-	size_t package_sz = 0, version_sz = 0;
-	char *start = buf;
-	char *ptr = buf;
+	size_t package_sz = 0, version_sz = 0, buf_sz = 0;
+	char *buf;
+	char *start = NULL;
+	char *ptr = NULL;
 	char *vstart = NULL;
 	char *package = NULL, *version = NULL;
 	char *cnameptr = cmpname;
 	char *cnameend = cmpname + PKGCONF_ITEM_SIZE - 1;
 
+	if (!*depends)
+		return;
+
 	memset(cmpname, '\0', sizeof cmpname);
 
-	pkgconf_strlcpy(buf, depends, sizeof buf);
-	pkgconf_strlcat(buf, " ", sizeof buf);
+	buf_sz = strlen(depends) * 2;
+	buf = calloc(1, buf_sz);
+	if (buf == NULL)
+		return;
+
+	pkgconf_strlcpy(buf, depends, buf_sz);
+	pkgconf_strlcat(buf, " ", buf_sz);
+
+	start = ptr = buf;
 
 	while (*ptr)
 	{
@@ -255,11 +342,11 @@ pkgconf_dependency_parse_str(const pkgconf_client_t *client, pkgconf_list_t *dep
 			break;
 
 		case INSIDE_MODULE_NAME:
-			if (isspace((unsigned int)*ptr))
+			if (isspace((unsigned char)*ptr))
 			{
 				const char *sptr = ptr;
 
-				while (*sptr && isspace((unsigned int)*sptr))
+				while (*sptr && isspace((unsigned char)*sptr))
 					sptr++;
 
 				if (*sptr == '\0')
@@ -312,18 +399,19 @@ pkgconf_dependency_parse_str(const pkgconf_client_t *client, pkgconf_list_t *dep
 			break;
 
 		case INSIDE_OPERATOR:
-			if (!PKGCONF_IS_OPERATOR_CHAR(*ptr))
+			if (PKGCONF_IS_OPERATOR_CHAR(*ptr))
 			{
-				state = AFTER_OPERATOR;
-				compare = pkgconf_pkg_comparator_lookup_by_name(cmpname);
+				if (cnameptr < cnameend)
+					*cnameptr++ = *ptr;
+				break;
 			}
-			else if (cnameptr < cnameend)
-				*cnameptr++ = *ptr;
 
-			break;
+			state = AFTER_OPERATOR;
+			compare = pkgconf_pkg_comparator_lookup_by_name(cmpname);
+			// fallthrough
 
 		case AFTER_OPERATOR:
-			if (!isspace((unsigned int)*ptr))
+			if (!isspace((unsigned char)*ptr))
 			{
 				vstart = ptr;
 				state = INSIDE_VERSION;
@@ -352,6 +440,8 @@ pkgconf_dependency_parse_str(const pkgconf_client_t *client, pkgconf_list_t *dep
 
 		ptr++;
 	}
+
+	free(buf);
 }
 
 /*
@@ -371,10 +461,46 @@ pkgconf_dependency_parse_str(const pkgconf_client_t *client, pkgconf_list_t *dep
  *    :return: nothing
  */
 void
-pkgconf_dependency_parse(const pkgconf_client_t *client, pkgconf_pkg_t *pkg, pkgconf_list_t *deplist, const char *depends, unsigned int flags)
+pkgconf_dependency_parse(pkgconf_client_t *client, pkgconf_pkg_t *pkg, pkgconf_list_t *deplist, const char *depends, unsigned int flags)
 {
-	char *kvdepends = pkgconf_tuple_parse(client, &pkg->vars, depends);
+	char *kvdepends = pkgconf_tuple_parse(client, &pkg->vars, depends, pkg->flags);
 
 	pkgconf_dependency_parse_str(client, deplist, kvdepends, flags);
 	free(kvdepends);
+}
+
+/*
+ * !doc
+ *
+ * .. c:function:: pkgconf_dependency_t *pkgconf_dependency_copy(pkgconf_client_t *client, const pkgconf_dependency_t *dep)
+ *
+ *    Copies a dependency node to a new one.
+ *
+ *    :param pkgconf_client_t* client: The client object that will own this dependency.
+ *    :param pkgconf_dependency_t* dep: The dependency node to copy.
+ *    :return: a pointer to a new dependency node, else NULL
+ */
+pkgconf_dependency_t *
+pkgconf_dependency_copy(pkgconf_client_t *client, const pkgconf_dependency_t *dep)
+{
+	pkgconf_dependency_t *new_dep;
+
+	new_dep = calloc(1, sizeof(pkgconf_dependency_t));
+	if (new_dep == NULL)
+		return NULL;
+
+	new_dep->package = strdup(dep->package);
+
+	if (dep->version != NULL)
+		new_dep->version = strdup(dep->version);
+
+	new_dep->compare = dep->compare;
+	new_dep->flags = dep->flags;
+	new_dep->owner = client;
+	new_dep->refcount = 0;
+
+	if (dep->match != NULL)
+		new_dep->match = pkgconf_pkg_ref(client, dep->match);
+
+	return pkgconf_dependency_ref(client, new_dep);
 }

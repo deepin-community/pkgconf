@@ -9,6 +9,27 @@
 /* Define to 1 if you have the `strndup' function. */
 #mesondefine HAVE_STRNDUP
 
+/* Define to 1 if you have the `reallocarray' function. */
+#mesondefine HAVE_REALLOCARRAY
+
+/* Define to 1 if you have the `strlcat' function. */
+#mesondefine HAVE_DECL_STRLCAT
+
+/* Define to 1 if you have the `strlcpy' function. */
+#mesondefine HAVE_DECL_STRLCPY
+
+/* Define to 1 if you have the `strndup' function. */
+#mesondefine HAVE_DECL_STRNDUP
+
+/* Define to 1 if you have the `reallocarray' function. */
+#mesondefine HAVE_DECL_REALLOCARRAY
+
+/* Define to 1 if you have the `pledge' function. */
+#mesondefine HAVE_DECL_PLEDGE
+
+/* Define to 1 if you have the `unveil' function. */
+#mesondefine HAVE_DECL_UNVEIL
+
 /* Name of package */
 #mesondefine PACKAGE
 
@@ -51,3 +72,8 @@
 #mesondefine SYSTEM_INCLUDEDIR
 #mesondefine SYSTEM_LIBDIR
 #mesondefine PERSONALITY_PATH
+
+/* Enable Solaris extensions. */
+#ifndef __EXTENSIONS__
+# define __EXTENSIONS__ 1
+#endif

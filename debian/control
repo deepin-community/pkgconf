@@ -2,15 +2,17 @@ Source: pkgconf
 Section: devel
 Priority: optional
 Maintainer: Andrej Shadura <andrewsh@debian.org>
+Uploaders: Andrea Pappacoda <tachi@debian.org>
 Build-Depends:
  debhelper-compat (= 13),
+ dpkg-build-api (= 1)
+Build-Depends-Arch:
  kyua <!nocheck>,
  atf-sh <!nocheck>
 Homepage: http://pkgconf.org/
-Standards-Version: 4.6.0
+Standards-Version: 4.7.2
 Vcs-Git: https://salsa.debian.org/debian/pkgconf.git
 Vcs-Browser: https://salsa.debian.org/debian/pkgconf
-Rules-Requires-Root: no
 
 Package: pkgconf
 Architecture: any
@@ -18,7 +20,6 @@ Multi-Arch: same
 Depends:
  pkgconf-bin (>= ${source:Version}),
  ${misc:Depends},
- ${perl:Depends},
  ${shlibs:Depends}
 Replaces:
  pkg-config (<< 1.8)
@@ -38,7 +39,6 @@ Architecture: any
 Multi-Arch: foreign
 Depends:
  ${misc:Depends},
- ${perl:Depends},
  ${shlibs:Depends}
 Breaks:
  pkgconf (<< 1.8.0-2~),
@@ -54,7 +54,7 @@ Description: manage compile and link flags for libraries (binaries)
  .
  This package contains the pkgconf binary and related files.
 
-Package: libpkgconf3
+Package: libpkgconf7
 Section: libs
 Architecture: any
 Multi-Arch: same
@@ -79,7 +79,7 @@ Section: libdevel
 Architecture: any
 Multi-Arch: same
 Depends:
- libpkgconf3 (= ${binary:Version}),
+ libpkgconf7 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends}
 Provides: libpkgconf
@@ -114,3 +114,14 @@ Description: manage compile and link flags for libraries (transitional package)
  .
  This package only provides a dependency link to the pkgconf package to help
  with package upgrades. It can be safely removed.
+
+Package: bomtool
+Architecture: any
+Multi-Arch: foreign
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends}
+Description: generate SPDX-based software bills of material
+ bomtool is a program which generates a textual SPDX 2.0 software bill of
+ materials (SBOM) for a given set of pkg-config modules.  The output of this
+ tool can then be translated into other SBOM formats as necessary.

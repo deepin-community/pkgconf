@@ -17,17 +17,26 @@
 #include <libpkgconf/stdinc.h>
 #include <libpkgconf/libpkgconf.h>
 
+/*
+ * !doc
+ *
+ * libpkgconf `personality` module
+ * =========================
+ */
+
 #ifdef _WIN32
 #	define strcasecmp _stricmp
 #endif
 
-static bool default_personality_init = false;
+/*
+ * Increment each time the default personality is inited, decrement each time
+ * it's deinited. Whenever it is 0, then the deinit frees the personality. In
+ * that case an additional call to init will create it anew.
+ */
+static unsigned default_personality_init = 0;
+
 static pkgconf_cross_personality_t default_personality = {
 	.name = "default",
-#ifdef _WIN32
-	.want_default_static = true,
-	.want_default_pure = true,
-#endif
 };
 
 static inline void
@@ -85,30 +94,65 @@ build_default_search_path(pkgconf_list_t* dirlist)
  *
  *    Returns the default cross-compile personality.
  *
+ *    Not thread safe.
+ *
  *    :rtype: pkgconf_cross_personality_t*
  *    :return: the default cross-compile personality
  */
 pkgconf_cross_personality_t *
 pkgconf_cross_personality_default(void)
 {
-	if (default_personality_init)
+	if (default_personality_init) {
+		++default_personality_init;
 		return &default_personality;
+	}
 
 	build_default_search_path(&default_personality.dir_list);
 
 	pkgconf_path_split(SYSTEM_LIBDIR, &default_personality.filter_libdirs, false);
 	pkgconf_path_split(SYSTEM_INCLUDEDIR, &default_personality.filter_includedirs, false);
 
-	default_personality_init = true;
+	++default_personality_init;
 	return &default_personality;
 }
 
+/*
+ * !doc
+ *
+ * .. c:function:: void pkgconf_cross_personality_deinit(pkgconf_cross_personality_t *)
+ *
+ *    Destroys a cross personality object and/or decreases the reference count on the
+ *    default cross personality object.
+ *
+ *    Not thread safe.
+ *
+ *    :rtype: void
+ */
 void
 pkgconf_cross_personality_deinit(pkgconf_cross_personality_t *personality)
 {
+	/* allow NULL parameter for API backwards compatibility */
+	if (personality == NULL)
+		return;
+
+	/* XXX: this hack is rather ugly, but it works for now... */
+	if (personality == &default_personality && --default_personality_init > 0)
+		return;
+
 	pkgconf_path_free(&personality->dir_list);
 	pkgconf_path_free(&personality->filter_libdirs);
 	pkgconf_path_free(&personality->filter_includedirs);
+
+	if (personality->sysroot_dir != NULL)
+		free(personality->sysroot_dir);
+
+	if (personality == &default_personality)
+		return;
+
+	if (personality->name != NULL)
+		free(personality->name);
+
+	free(personality);
 }
 
 #ifndef PKGCONF_LITE
@@ -118,7 +162,7 @@ valid_triplet(const char *triplet)
 	const char *c = triplet;
 
 	for (; *c; c++)
-		if (!isalnum(*c) && *c != '-' && *c != '_')
+		if (!isalnum((unsigned char)*c) && *c != '-' && *c != '_')
 			return false;
 
 	return true;
@@ -211,25 +255,33 @@ personality_warn_func(void *p, const char *fmt, ...)
 }
 
 static pkgconf_cross_personality_t *
-load_personality_with_path(const char *path, const char *triplet)
+load_personality_with_path(const char *path, const char *triplet, bool datadir)
 {
 	char pathbuf[PKGCONF_ITEM_SIZE];
 	FILE *f;
 	pkgconf_cross_personality_t *p;
 
 	/* if triplet is null, assume that path is a direct path to the personality file */
-	if (triplet != NULL)
-		snprintf(pathbuf, sizeof pathbuf, "%s/%s.personality", path, triplet);
-	else
+	if (triplet == NULL)
 		pkgconf_strlcpy(pathbuf, path, sizeof pathbuf);
+	else if (datadir)
+		snprintf(pathbuf, sizeof pathbuf, "%s/pkgconfig/personality.d/%s.personality", path, triplet);
+	else
+		snprintf(pathbuf, sizeof pathbuf, "%s/%s.personality", path, triplet);
 
-	f = fopen(pathbuf, "r");
-	if (f == NULL)
+	p = calloc(1, sizeof(pkgconf_cross_personality_t));
+	if (p == NULL)
 		return NULL;
 
-	p = calloc(sizeof(pkgconf_cross_personality_t), 1);
 	if (triplet != NULL)
 		p->name = strdup(triplet);
+
+	f = fopen(pathbuf, "r");
+	if (f == NULL) {
+		pkgconf_cross_personality_deinit(p);
+		return NULL;
+	}
+
 	pkgconf_parser_parse(f, p, personality_parser_ops, personality_warn_func, pathbuf);
 
 	return p;
@@ -251,13 +303,43 @@ pkgconf_cross_personality_find(const char *triplet)
 	pkgconf_list_t plist = PKGCONF_LIST_INITIALIZER;
 	pkgconf_node_t *n;
 	pkgconf_cross_personality_t *out = NULL;
+#if ! defined(_WIN32) && ! defined(__HAIKU__)
+	char pathbuf[PKGCONF_ITEM_SIZE];
+	const char *envvar;
+#endif
 
-	out = load_personality_with_path(triplet, NULL);
+	out = load_personality_with_path(triplet, NULL, false);
 	if (out != NULL)
 		return out;
 
 	if (!valid_triplet(triplet))
 		return NULL;
+
+#if ! defined(_WIN32) && ! defined(__HAIKU__)
+	envvar = getenv("XDG_DATA_HOME");
+	if (envvar != NULL)
+		pkgconf_path_add(envvar, &plist, true);
+	else {
+		envvar = getenv("HOME");
+		if (envvar != NULL) {
+			pkgconf_strlcpy(pathbuf, envvar, sizeof pathbuf);
+			pkgconf_strlcat(pathbuf, "/.local/share", sizeof pathbuf);
+			pkgconf_path_add(pathbuf, &plist, true);
+		}
+	}
+
+	pkgconf_path_build_from_environ("XDG_DATA_DIRS", "/usr/local/share" PKG_CONFIG_PATH_SEP_S "/usr/share", &plist, true);
+
+	PKGCONF_FOREACH_LIST_ENTRY(plist.head, n)
+	{
+		pkgconf_path_t *pn = n->data;
+
+		out = load_personality_with_path(pn->path, triplet, true);
+		if (out != NULL)
+			goto finish;
+	}
+	pkgconf_path_free(&plist);
+#endif
 
 	pkgconf_path_split(PERSONALITY_PATH, &plist, true);
 
@@ -265,7 +347,7 @@ pkgconf_cross_personality_find(const char *triplet)
 	{
 		pkgconf_path_t *pn = n->data;
 
-		out = load_personality_with_path(pn->path, triplet);
+		out = load_personality_with_path(pn->path, triplet, false);
 		if (out != NULL)
 			goto finish;
 	}

@@ -1,13 +1,350 @@
 Changes from previous version of pkgconf
 ========================================
 
-Changes from 1.8.0 to 1.8.1:
+Changes from 2.5.0 to 2.5.1:
+----------------------------
+
+* Fix processing of empty dependency lists.
+
+Changes from 2.4.3 to 2.5.0:
+----------------------------
+
+* Added a manual page for bomtool.
+
+* Add support for preloaded packages.
+  These are modules which are preloaded into the package database
+  and preferred over searching the module search path when present.
+
+* Refactor Windows registry PKG_CONFIG_PATH support so that it
+  augments the main directory search list instead of being treated
+  as a special case.
+
+* Processing of `--with-path` arguments by the pkgconf CLI is
+  now deferred until libpkgconf is fully initialized, effectively
+  aligning behavior with PKG_CONFIG_PATH processing.
+
+* Fix several minor memory safety bugs which were identified by
+  the GCC 15 static analyzer.
+
+* Added support for pledge(2) and unveil(2) on systems where
+  this functionality is available.
+
+* Significant improvements to pkgconf's manual pages.
+  Patches by Ingo Schwarze and Jonathan Gray (OpenBSD).
+
+* Remove questionable default-static assumption on Windows that
+  was inherited from the original pkg-config.  Most distributions
+  of pkgconf on Windows were already patching this out.
+  Patch by Kai Pastor.
+
+* Add -D_POSIX_C_SOURCE=200809L to the build definitions, which
+  is needed for readlinkat on glibc.
+  Patch by Filipe Laíns.
+
+Changes from 2.4.2 to 2.4.3:
+----------------------------
+
+* Fix additional logic errors relating to the new fragment trees
+  functionality.
+
+Changes from 2.4.1 to 2.4.2:
+----------------------------
+
+* Fix several logic errors in the pkg-config file parser that were
+  surfaced by recent refactoring work.
+
+* Fix BSD make compatibility so that it generates the test data
+  before running kyua on BSD make implementations.
+
+Changes from 2.4.0 to 2.4.1:
+----------------------------
+
+* Ensure the full DAG is solved for all query types.
+
+Changes from 2.3.0 to 2.4.0:
+----------------------------
+
+* Allow multiple package names in solution-based queries such as
+  `--print-requires`, `--print-requires-private` and `--print-provides`.
+
+* Use `_DEFAULT_SOURCE` where appropriate on Meson.
+
+* Add an abstract buffer type and use it when loading files from disk
+  instead of a 64KB buffer.  This ensures large pkg-config files are
+  not truncated.
+
+* Disable graph recursion in `--variable` queries as it was generating
+  duplicate output.
+
+* Add infrastructure for tracking fragment group relations and convert
+  storage of fragments to use a tree-like structure instead of string
+  concatenation.
+
+* Add support for tracking linker groups, e.g.
+
+    -Wl,--start-group -la -lb -lc -Wl,--end-group
+
+  as fragment groups.
+
+* Properly contextualize the sysroot directory when processing package
+  information, ensuring packages where ${pc_sysrootdir} does not match
+  the default are properly processed.
+
+Changes from 2.2.0 to 2.3.0:
+----------------------------
+
+* Fix compile with Meson on Solaris by defining __EXTENSIONS__.
+
+* Add support for the PKG_CONFIG_RELOCATE_PATHS environmental variable.
+  When set, the program will act as if --define-prefix is always enabled.
+
+* Color solution nodes that were part of the original query, and use
+  that coloring to skip over dependencies when generating DocumentNames
+  in bomtool.
+
+* Enhance --env option to support variables with both --variable=varname
+  and --print-variables.
+
+* Add --exists-cflags option which creates synthetic preprocessor
+  definition flags for every queried dependency when found.
+
+* Document that Requires.private is always used for header paths.
+  Patch by Petr Písař.
+
+* Fix minor documentation typos.
+  Patch by Pierce.
+
+* Ensure string comparisons using <ctype.h> functions are done with
+  unsigned bytes to avoid undefined behavior.
+  Patch by Taylor R Campbell.
+
+* Fix parsing edge-case bugs with dependency versions.
+  Patch by Kai Pastor.
+
+* Change PKG_PROG_PKG_CONFIG autoconf macro to add a customizable
+  failure handler if pkg-config is not found.
+  Patch by Ismael Luceno.
+
+Changes from 2.1.1 to 2.2.0:
+----------------------------
+
+* libpkgconf SOVERSION is now 5.
+
+* Significant solver rework to flatten both requires and requires.private
+  dependencies in a single pass.  Improves performance slightly and ensures
+  proper dependency order.
+  Patches by Kai Pastor.
+
+* Improve `--digraph` output to reflect more of the solver's state in the
+  rendered dependency graph.
+  Patches by Kai Pastor.
+
+* Do not reference the graph root by name when presenting error messages about
+  directly requested dependency nodes.
+  Patch by Kai Pastor.
+
+Changes from 2.1.0 to 2.1.1:
+----------------------------
+
+* Documentation fixes from Sam James and Stefan Weil.
+
+* Fix --modversion with constraints.
+  Patch by Kai Pastor.
+
+* Reintroduce an optimization to the dependency graph walker which avoids
+  revisiting already visited nodes.
+  Patch by Yi Chou with some modifications.
+
+* Add a regression test to check that the dependency flattener is working
+  as expected.
+  Patch by Kai Pastor.
+
+Changes from 2.0.3 to 2.1.0:
+----------------------------
+
+* Do not flatten the solver solution into the original world used as
+  input to the solver.
+  Patches by Kai Pastor.
+
+* Fix warnings with GCC 14 -Walloc-size.
+  Patch by Sam James.
+
+* Add --solution to the pkgconf CLI to dump the solver state.
+
+* Improve the --digraph output to clarify cancelled edges in a given
+  solution.
+
+* Demote requires dependencies to requires.private when a parent
+  dependency is pulled in via requires.private.
+
+* Trim trailing whitespace when processing package arguments.
+  Patch by Colin Gillespie.
+
+* Avoid strncmp() in --modversion version comparison.
+  Patch by Colin Gillespie.
+
+* Update autoconf compile flag checking macro.
+  Patch by Peter Kokot.
+
+* Add system default path configuration to Meson.
+  Patch by L. E. Segovia.
+
+* Fix order of PKG_CONFIG_LIBDIR and PKG_CONFIG_PATH element processing.
+
+Changes from 2.0.2 to 2.0.3:
+----------------------------
+
+* Fix some edge-cases with the new `--modversion` implementation
+  and add additional regression tests.
+  Patch by Colin Gillespie.
+
+* Fix some format specifiers to use PRIu64 in debug tracing.
+
+Changes from 2.0.1 to 2.0.2:
+----------------------------
+
+* Fix long-standing bug where package identifiers for "uninstalled"
+  packages incorrectly included the "-uninstalled" suffix.
+
+  This was exposed by the recent change to `--modversion` in 2.0.1.
+
+Changes from 2.0.0 to 2.0.1:
+----------------------------
+
+* The behavior of --modversion was largely reverted back to the traditional
+  pkg-config behavior, but still operates on a solved dependency graph.
+
+  The order of --modversion output is based on the dependency resolution
+  queue which is passed to the solver, which itself generally maps to the
+  order of the constrants provided on the command line.
+
+* A new flag, --verbose, has been added.  When used with `--modversion`, it
+  is possible to disambiguate which version belongs to which module:
+
+    % pkgconf --modversion --verbose foo bar
+    foo: 1.2.3
+    bar: 1.3
+
+Changes from 1.9.5 to 2.0.0:
+----------------------------
+
+* When flattening the dependency graph, retain the latest seen edges
+  rather than the earliest.
+
+* Fix a long-standing bug where the dependency resolution queue was
+  evaluated in reverse.  This bug masked the aforementioned dependency
+  flattening bug in many cases.
+
+* Fix handling of --with-path, which was appending paths to the search
+  list rather than prepending them as intended.
+
+* Error when --modversion is requested with more than one package, as
+  the output is ambiguous.
+
+Changes from 1.9.4 to 1.9.5:
+----------------------------
+
+* Fix incorrect assumptions involving the use of ctype(3) functions.
+  Patch by Taylor R Campbell.
+
+* Fix detection of provided functions on autoconf.
+  Patches by Harmen Stoppels.
+
+* Fix deletion of tests/meson.build by the autoconf build system.
+  Patch by h30032433.
+
+* Fix quoting rules in argvsplit.c.
+  Patch by huyubiao.
+
+* Update libpkgconf documentation and documentation building scripts.
+  Patches by Andrew Shadura.
+
+* Enforce maximum package count correctly for --modversion.
+
+Changes from 1.9.3 to 1.9.4:
 ----------------------------
 
 * Fix a buffer overflow vulnerability involving very large variable expansions.
   CVE-2023-24056
 
+* Fix a bunch of minor regressions with the solver.
+
+* Create separate solutions for `--cflags` and `--libs` when `--static` is not
+  used.
+
+* Remove final trailing whitespace in pkgconf_fragment_render_buf().
+
+* Revert broken pkg.m4 change involving querying module versions in
+  PKG_CHECK_MODULES.
+
 * Fix handling of tildes in version strings.
+
+* Various C99 formatting string fixes involving SIZE_FMT_SPECIFIER.
+
+Changes from 1.9.2 to 1.9.3:
+----------------------------
+
+* Fix a bunch of minor code issues pointed out using Clang static analyzer.
+
+* New API: pkgconf_solution_free(), which frees a compiled solution graph.
+
+* Fix behavior when overriding global variables with `--define-variable`.
+
+Changes from 1.9.1 to 1.9.2:
+----------------------------
+
+* Do not try to break dependency cycles across dependency lists.  This causes
+  the solved graph to sometimes miss required dependency nodes because the
+  solver detected an incorrect dependency cycle.
+
+* New API: pkgconf_queue_solve(), which replaces pkgconf_queue_apply().
+  pkgconf_queue_apply is now deprecated and should not be used in new code.
+
+Changes from 1.9.0 to 1.9.1:
+----------------------------
+
+* Skip graph flattening and traversal for query types which only make sense
+  for a single pkg-config module.
+
+  The old solver walked these graphs with --maximum-traverse-depth=1 in
+  these cases, but this is no longer helpful because the graph is flattened
+  by the new solver.
+
+Changes from 1.8.0 to 1.9.0:
+----------------------------
+
+* pkgconf 1.9.0 is the first testing release in the pkgconf 2.0 development
+  series.  While it is believed to be suitable for production, there may be
+  bugs due to the overall redesign of the solver and other initiatives.
+  Additionally, a future release of pkgconf plans will have additional ABI
+  breaks for the libpkgconf library before the pkgconf 2.0 release is cut.
+
+* There is now a new solver that is designed to provide higher performance
+  with complicated graphs, which works by flattening the dependency graph
+  into a smaller set of dependencies.  This graph can then be evaluated
+  instead of the original dependency graph without having to visit every
+  edge in the graph.
+
+  NOTE: This solver, while providing significant performance improvements,
+  does so, at the cost of changed behavior for some edge cases (such as
+  circular dependencies).
+
+* Bug fixes:
+  - Resolved several memory leaks with edge cases when using libpkgconf
+    directly.
+  - pkgconf CLI now consistently frees libpkgconf resources under all
+    circumstances.
+  - SYSROOT rules are no longer applied to `-uninstalled` packages by
+    default.  Use `PKG_CONFIG_PKGCONF1_SYSROOT_RULES` for legacy behavior.
+
+* A new `--license` selector has been added to the pkgconf CLI.  This uses
+  SPDX expressions which can be set as the `License` field in `.pc` files.
+  See the `pc(5)` manpage for more information.
+
+* The canonical location for pkgconf maintenance going forward is
+  <https://gitea.treehouse.systems/ariadne/pkgconf>.  This is presently
+  mirrored to GitHub for user convenience, but that mirroring will
+  be terminated at some point (due to GitHub Copilot).
 
 Changes from 1.7.4 to 1.8.0:
 ----------------------------

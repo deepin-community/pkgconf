@@ -70,11 +70,16 @@
 #define PKG_INTERNAL_CFLAGS		(((uint64_t) 1) << 42)
 #define PKG_DUMP_PERSONALITY		(((uint64_t) 1) << 43)
 #define PKG_SHARED			(((uint64_t) 1) << 44)
+#define PKG_DUMP_LICENSE		(((uint64_t) 1) << 45)
+#define PKG_SOLUTION			(((uint64_t) 1) << 46)
+#define PKG_EXISTS_CFLAGS		(((uint64_t) 1) << 47)
+#define PKG_FRAGMENT_TREE		(((uint64_t) 1) << 48)
 
 static pkgconf_client_t pkg_client;
 static const pkgconf_fragment_render_ops_t *want_render_ops = NULL;
 
 static uint64_t want_flags;
+static int verbosity = 0;
 static int maximum_traverse_depth = 2000;
 static size_t maximum_package_count = 0;
 
@@ -85,7 +90,7 @@ FILE *error_msgout = NULL;
 FILE *logfile_out = NULL;
 
 static bool
-error_handler(const char *msg, const pkgconf_client_t *client, const void *data)
+error_handler(const char *msg, const pkgconf_client_t *client, void *data)
 {
 	(void) client;
 	(void) data;
@@ -251,32 +256,71 @@ apply_provides(pkgconf_client_t *client, pkgconf_pkg_t *world, void *unused, int
 
 #ifndef PKGCONF_LITE
 static void
-print_digraph_node(pkgconf_client_t *client, pkgconf_pkg_t *pkg, void *unused)
+print_digraph_node(pkgconf_client_t *client, pkgconf_pkg_t *pkg, void *data)
 {
 	pkgconf_node_t *node;
 	(void) client;
-	(void) unused;
+	pkgconf_pkg_t **last_seen = data;
 
-	printf("\"%s\" [fontname=Sans fontsize=8]\n", pkg->id);
+	if(pkg->flags & PKGCONF_PKG_PROPF_VIRTUAL)
+		return;
+
+	if (pkg->flags & PKGCONF_PKG_PROPF_VISITED_PRIVATE)
+		printf("\"%s\" [fontname=Sans fontsize=8 fontcolor=gray color=gray]\n", pkg->id);
+	else
+		printf("\"%s\" [fontname=Sans fontsize=8]\n", pkg->id);
+
+	if (last_seen != NULL)
+	{
+		if (*last_seen != NULL)
+			printf("\"%s\" -> \"%s\" [fontname=Sans fontsize=8 color=red]\n", (*last_seen)->id, pkg->id);
+
+		*last_seen = pkg;
+	}
 
 	PKGCONF_FOREACH_LIST_ENTRY(pkg->required.head, node)
 	{
 		pkgconf_dependency_t *dep = node->data;
+		const char *dep_id = (dep->match != NULL) ? dep->match->id : dep->package;
 
-		printf("\"%s\" -- \"%s\" [fontname=Sans fontsize=8]\n", dep->package, pkg->id);
+		if ((dep->flags & PKGCONF_PKG_DEPF_PRIVATE) == 0)
+			printf("\"%s\" -> \"%s\" [fontname=Sans fontsize=8]\n", pkg->id, dep_id);
+		else
+			printf("\"%s\" -> \"%s\" [fontname=Sans fontsize=8 color=gray]\n", pkg->id, dep_id);
+	}
+
+	PKGCONF_FOREACH_LIST_ENTRY(pkg->requires_private.head, node)
+	{
+		pkgconf_dependency_t *dep = node->data;
+		const char *dep_id = (dep->match != NULL) ? dep->match->id : dep->package;
+
+		printf("\"%s\" -> \"%s\" [fontname=Sans fontsize=8 color=gray]\n", pkg->id, dep_id);
 	}
 }
 
 static bool
-apply_digraph(pkgconf_client_t *client, pkgconf_pkg_t *world, void *unused, int maxdepth)
+apply_digraph(pkgconf_client_t *client, pkgconf_pkg_t *world, void *data, int maxdepth)
 {
 	int eflag;
+	pkgconf_list_t *list = data;
+	pkgconf_pkg_t *last_seen = NULL;
+	pkgconf_node_t *iter;
 
-	printf("graph deptree {\n");
+	printf("digraph deptree {\n");
 	printf("edge [color=blue len=7.5 fontname=Sans fontsize=8]\n");
 	printf("node [fontname=Sans fontsize=8]\n");
+	printf("\"user:request\" [fontname=Sans fontsize=8]\n");
 
-	eflag = pkgconf_pkg_traverse(client, world, print_digraph_node, unused, maxdepth, 0);
+	PKGCONF_FOREACH_LIST_ENTRY(list->head, iter)
+	{
+		pkgconf_queue_t *pkgq = iter->data;
+		pkgconf_pkg_t *pkg = pkgconf_pkg_find(client, pkgq->package);
+		printf("\"user:request\" -> \"%s\" [fontname=Sans fontsize=8]\n", pkg == NULL ? pkgq->package : pkg->id);
+		if (pkg != NULL)
+			pkgconf_pkg_unref(client, pkg);
+	}
+
+	eflag = pkgconf_pkg_traverse(client, world, print_digraph_node, &last_seen, maxdepth, 0);
 
 	if (eflag != PKGCONF_PKG_ERRF_OK)
 		return false;
@@ -284,23 +328,62 @@ apply_digraph(pkgconf_client_t *client, pkgconf_pkg_t *world, void *unused, int 
 	printf("}\n");
 	return true;
 }
+
+static void
+print_solution_node(pkgconf_client_t *client, pkgconf_pkg_t *pkg, void *unused)
+{
+	(void) client;
+	(void) unused;
+
+	printf("%s (%"PRIu64")%s\n", pkg->id, pkg->identifier, (pkg->flags & PKGCONF_PKG_PROPF_VISITED_PRIVATE) == PKGCONF_PKG_PROPF_VISITED_PRIVATE ? " [private]" : "");
+}
+
+static bool
+apply_print_solution(pkgconf_client_t *client, pkgconf_pkg_t *world, void *unused, int maxdepth)
+{
+	int eflag;
+
+	eflag = pkgconf_pkg_traverse(client, world, print_solution_node, unused, maxdepth, 0);
+
+	return eflag == PKGCONF_PKG_ERRF_OK;
+}
 #endif
 
 static bool
-apply_modversion(pkgconf_client_t *client, pkgconf_pkg_t *world, void *unused, int maxdepth)
+apply_modversion(pkgconf_client_t *client, pkgconf_pkg_t *world, void *data, int maxdepth)
 {
-	pkgconf_node_t *iter;
+	pkgconf_node_t *queue_iter;
+	pkgconf_list_t *pkgq = data;
 	(void) client;
-	(void) unused;
 	(void) maxdepth;
 
-	PKGCONF_FOREACH_LIST_ENTRY(world->required.head, iter)
+	PKGCONF_FOREACH_LIST_ENTRY(pkgq->head, queue_iter)
 	{
-		pkgconf_dependency_t *dep = iter->data;
-		pkgconf_pkg_t *pkg = dep->match;
+		pkgconf_node_t *world_iter;
+		pkgconf_queue_t *queue_node = queue_iter->data;
 
-		if (pkg->version != NULL)
-			printf("%s\n", pkg->version);
+		PKGCONF_FOREACH_LIST_ENTRY(world->required.head, world_iter)
+		{
+			pkgconf_dependency_t *dep = world_iter->data;
+			pkgconf_pkg_t *pkg = dep->match;
+
+			const size_t name_len = strlen(pkg->why);
+			if (name_len > strlen(queue_node->package) ||
+			    strncmp(pkg->why, queue_node->package, name_len) ||
+			    (queue_node->package[name_len] != 0 &&
+			     !isspace((unsigned char)queue_node->package[name_len]) &&
+			     !PKGCONF_IS_OPERATOR_CHAR(queue_node->package[name_len])))
+				continue;
+
+			if (pkg->version != NULL) {
+				if (verbosity)
+					printf("%s: ", pkg->id);
+
+				printf("%s\n", pkg->version);
+			}
+
+			break;
+		}
 	}
 
 	return true;
@@ -346,16 +429,6 @@ apply_path(pkgconf_client_t *client, pkgconf_pkg_t *world, void *unused, int max
 	return true;
 }
 
-static void
-print_variable(pkgconf_client_t *client, pkgconf_pkg_t *pkg, const char *variable)
-{
-	const char *var;
-
-	var = pkgconf_tuple_find(client, &pkg->vars, variable);
-	if (var != NULL)
-		printf("%s", var);
-}
-
 static bool
 apply_variable(pkgconf_client_t *client, pkgconf_pkg_t *world, void *variable, int maxdepth)
 {
@@ -366,11 +439,12 @@ apply_variable(pkgconf_client_t *client, pkgconf_pkg_t *world, void *variable, i
 	{
 		pkgconf_dependency_t *dep = iter->data;
 		pkgconf_pkg_t *pkg = dep->match;
+		const char *var;
 
-		if (iter->prev != NULL)
-			printf(" ");
+		var = pkgconf_tuple_find(client, &pkg->vars, variable);
 
-		print_variable(client, pkg, variable);
+		if (var != NULL)
+			printf("%s%s", iter->prev != NULL ? " " : "", var);
 	}
 
 	printf("\n");
@@ -381,7 +455,8 @@ apply_variable(pkgconf_client_t *client, pkgconf_pkg_t *world, void *variable, i
 static bool
 apply_env_var(const char *prefix, pkgconf_client_t *client, pkgconf_pkg_t *world, int maxdepth,
 	unsigned int (*collect_fn)(pkgconf_client_t *client, pkgconf_pkg_t *world, pkgconf_list_t *list, int maxdepth),
-	bool (*filter_fn)(const pkgconf_client_t *client, const pkgconf_fragment_t *frag, void *data))
+	bool (*filter_fn)(const pkgconf_client_t *client, const pkgconf_fragment_t *frag, void *data),
+	void (*postprocess_fn)(pkgconf_client_t *client, pkgconf_pkg_t *world, pkgconf_list_t *fragment_list))
 {
 	pkgconf_list_t unfiltered_list = PKGCONF_LIST_INITIALIZER;
 	pkgconf_list_t filtered_list = PKGCONF_LIST_INITIALIZER;
@@ -393,6 +468,9 @@ apply_env_var(const char *prefix, pkgconf_client_t *client, pkgconf_pkg_t *world
 		return false;
 
 	pkgconf_fragment_filter(client, &filtered_list, &unfiltered_list, filter_fn, NULL);
+
+	if (postprocess_fn != NULL)
+		postprocess_fn(client, world, &filtered_list);
 
 	if (filtered_list.head == NULL)
 		goto out;
@@ -408,6 +486,94 @@ out:
 	return true;
 }
 
+static void
+maybe_add_module_definitions(pkgconf_client_t *client, pkgconf_pkg_t *world, pkgconf_list_t *fragment_list)
+{
+	pkgconf_node_t *world_iter;
+
+	if ((want_flags & PKG_EXISTS_CFLAGS) != PKG_EXISTS_CFLAGS)
+		return;
+
+	PKGCONF_FOREACH_LIST_ENTRY(world->required.head, world_iter)
+	{
+		pkgconf_dependency_t *dep = world_iter->data;
+		char havebuf[PKGCONF_ITEM_SIZE];
+		char *p;
+
+		if ((dep->flags & PKGCONF_PKG_DEPF_QUERY) != PKGCONF_PKG_DEPF_QUERY)
+			continue;
+
+		if (dep->match == NULL)
+			continue;
+
+		snprintf(havebuf, sizeof havebuf, "HAVE_%s", dep->match->id);
+
+		for (p = havebuf; *p; p++)
+		{
+			switch (*p)
+			{
+				case ' ':
+				case '-':
+					*p = '_';
+					break;
+
+				default:
+					*p = toupper((unsigned char) *p);
+			}
+		}
+
+		pkgconf_fragment_insert(client, fragment_list, 'D', havebuf, false);
+	}
+}
+
+static void
+apply_env_variables(pkgconf_client_t *client, pkgconf_pkg_t *world, const char *env_prefix)
+{
+	(void) client;
+	pkgconf_node_t *world_iter;
+
+	PKGCONF_FOREACH_LIST_ENTRY(world->required.head, world_iter)
+	{
+		pkgconf_dependency_t *dep = world_iter->data;
+		pkgconf_pkg_t *pkg = dep->match;
+		pkgconf_node_t *tuple_iter;
+
+		if ((dep->flags & PKGCONF_PKG_DEPF_QUERY) != PKGCONF_PKG_DEPF_QUERY)
+			continue;
+
+		if (dep->match == NULL)
+			continue;
+
+		PKGCONF_FOREACH_LIST_ENTRY(pkg->vars.head, tuple_iter)
+		{
+			pkgconf_tuple_t *tuple = tuple_iter->data;
+			char havebuf[PKGCONF_ITEM_SIZE];
+			char *p;
+
+			if (want_variable != NULL && strcmp(want_variable, tuple->key))
+				continue;
+
+			snprintf(havebuf, sizeof havebuf, "%s_%s", env_prefix, tuple->key);
+
+			for (p = havebuf; *p; p++)
+			{
+				switch (*p)
+				{
+					case ' ':
+					case '-':
+						*p = '_';
+						break;
+
+					default:
+						*p = toupper((unsigned char) *p);
+				}
+			}
+
+			printf("%s='%s'\n", havebuf, tuple->value);
+		}
+	}
+}
+
 static bool
 apply_env(pkgconf_client_t *client, pkgconf_pkg_t *world, void *env_prefix_p, int maxdepth)
 {
@@ -415,16 +581,20 @@ apply_env(pkgconf_client_t *client, pkgconf_pkg_t *world, void *env_prefix_p, in
 	char workbuf[PKGCONF_ITEM_SIZE];
 
 	for (it = want_env_prefix; *it != '\0'; it++)
-		if (!isalpha(*it) && !isdigit(*it))
+		if (!isalpha((unsigned char)*it) &&
+		    !isdigit((unsigned char)*it))
 			return false;
 
 	snprintf(workbuf, sizeof workbuf, "%s_CFLAGS", want_env_prefix);
-	if (!apply_env_var(workbuf, client, world, maxdepth, pkgconf_pkg_cflags, filter_cflags))
+	if (!apply_env_var(workbuf, client, world, maxdepth, pkgconf_pkg_cflags, filter_cflags, maybe_add_module_definitions))
 		return false;
 
 	snprintf(workbuf, sizeof workbuf, "%s_LIBS", want_env_prefix);
-	if (!apply_env_var(workbuf, client, world, maxdepth, pkgconf_pkg_libs, filter_libs))
+	if (!apply_env_var(workbuf, client, world, maxdepth, pkgconf_pkg_libs, filter_libs, NULL))
 		return false;
+
+	if ((want_flags & PKG_VARIABLES) == PKG_VARIABLES || want_variable != NULL)
+		apply_env_variables(client, world, want_env_prefix);
 
 	return true;
 }
@@ -443,6 +613,7 @@ apply_cflags(pkgconf_client_t *client, pkgconf_pkg_t *world, void *unused, int m
 		return false;
 
 	pkgconf_fragment_filter(client, &filtered_list, &unfiltered_list, filter_cflags, NULL);
+	maybe_add_module_definitions(client, world, &filtered_list);
 
 	if (filtered_list.head == NULL)
 		goto out;
@@ -594,6 +765,75 @@ apply_simulate(pkgconf_client_t *client, pkgconf_pkg_t *world, void *data, int m
 #endif
 
 static void
+print_fragment_tree_branch(pkgconf_list_t *fragment_list, int indent)
+{
+	pkgconf_node_t *iter;
+
+	PKGCONF_FOREACH_LIST_ENTRY(fragment_list->head, iter)
+	{
+		pkgconf_fragment_t *frag = iter->data;
+
+		if (frag->type)
+			printf("%*s'-%c%s' [type %c]\n", indent, "", frag->type, frag->data, frag->type);
+		else
+			printf("%*s'%s' [untyped]\n", indent, "", frag->data);
+
+		print_fragment_tree_branch(&frag->children, indent + 2);
+	}
+
+	if (fragment_list->head != NULL)
+		printf("\n");
+}
+
+static bool
+apply_fragment_tree(pkgconf_client_t *client, pkgconf_pkg_t *world, void *data, int maxdepth)
+{
+	pkgconf_list_t unfiltered_list = PKGCONF_LIST_INITIALIZER;
+	int eflag;
+
+	(void) data;
+
+	eflag = pkgconf_pkg_cflags(client, world, &unfiltered_list, maxdepth);
+	if (eflag != PKGCONF_PKG_ERRF_OK)
+		return false;
+
+	eflag = pkgconf_pkg_libs(client, world, &unfiltered_list, maxdepth);
+	if (eflag != PKGCONF_PKG_ERRF_OK)
+		return false;
+
+	print_fragment_tree_branch(&unfiltered_list, 0);
+	pkgconf_fragment_free(&unfiltered_list);
+
+	return true;
+}
+
+static void
+print_license(pkgconf_client_t *client, pkgconf_pkg_t *pkg, void *data)
+{
+	(void) client;
+	(void) data;
+
+	if (pkg->flags & PKGCONF_PKG_PROPF_VIRTUAL)
+		return;
+
+	/* NOASSERTION is the default when the license is unknown, per SPDX spec § 3.15 */
+	printf("%s: %s\n", pkg->id, pkg->license != NULL ? pkg->license : "NOASSERTION");
+}
+
+static bool
+apply_license(pkgconf_client_t *client, pkgconf_pkg_t *world, void *data, int maxdepth)
+{
+	int eflag;
+
+	eflag = pkgconf_pkg_traverse(client, world, print_license, data, maxdepth, 0);
+
+	if (eflag != PKGCONF_PKG_ERRF_OK)
+		return false;
+
+	return true;
+}
+
+static void
 version(void)
 {
 	printf("%s\n", PACKAGE_VERSION);
@@ -624,6 +864,7 @@ usage(void)
 	printf("  --help                            this message\n");
 	printf("  --about                           print pkgconf version and license to stdout\n");
 	printf("  --version                         print supported pkg-config version to stdout\n");
+	printf("  --verbose                         print additional information\n");
 	printf("  --atleast-pkgconfig-version       check whether or not pkgconf is compatible\n");
 	printf("                                    with a specified pkg-config version\n");
 	printf("  --errors-to-stdout                print all errors on stdout instead of stderr\n");
@@ -690,18 +931,23 @@ usage(void)
 	printf("  --print-variables                 print all known variables in module to stdout\n");
 #ifndef PKGCONF_LITE
 	printf("  --digraph                         print entire dependency graph in graphviz 'dot' format\n");
+	printf("  --solution                        print dependency graph solution in a simple format\n");
 #endif
 	printf("  --keep-system-cflags              keep -I%s entries in cflags output\n", SYSTEM_INCLUDEDIR);
 	printf("  --keep-system-libs                keep -L%s entries in libs output\n", SYSTEM_LIBDIR);
 	printf("  --path                            show the exact filenames for any matching .pc files\n");
 	printf("  --modversion                      print the specified module's version to stdout\n");
 	printf("  --internal-cflags                 do not filter 'internal' cflags from output\n");
+	printf("  --license                         print the specified module's license to stdout if known\n");
+	printf("  --exists-cflags                   add -DHAVE_FOO fragments to cflags for each found module\n");
 
 	printf("\nfiltering output:\n\n");
 #ifndef PKGCONF_LITE
 	printf("  --msvc-syntax                     print translatable fragments in MSVC syntax\n");
 #endif
 	printf("  --fragment-filter=types           filter output fragments to the specified types\n");
+	printf("  --env=prefix                      print output as shell-compatible environmental variables\n");
+	printf("  --fragment-tree                   visualize printed CFLAGS/LIBS fragments as a tree\n");
 
 	printf("\nreport bugs to <%s>.\n", PACKAGE_BUGREPORT);
 }
@@ -785,6 +1031,47 @@ deduce_personality(char *argv[])
 }
 #endif
 
+static void
+unveil_handler(const pkgconf_client_t *client, const char *path, const char *permissions)
+{
+	(void) client;
+
+	if (pkgconf_unveil(path, permissions) == -1)
+	{
+		fprintf(stderr, "pkgconf: unveil failed: %s\n", strerror(errno));
+		exit(EXIT_FAILURE);
+	}
+}
+
+static bool
+unveil_search_paths(const pkgconf_client_t *client, const pkgconf_cross_personality_t *personality)
+{
+	pkgconf_node_t *n;
+
+	if (pkgconf_unveil("/dev/null", "rwc") == -1)
+		return false;
+
+	PKGCONF_FOREACH_LIST_ENTRY(client->dir_list.head, n)
+	{
+		pkgconf_path_t *pn = n->data;
+
+		if (pkgconf_unveil(pn->path, "r") == -1)
+			return false;
+	}
+
+	PKGCONF_FOREACH_LIST_ENTRY(personality->dir_list.head, n)
+	{
+		pkgconf_path_t *pn = n->data;
+
+		if (pkgconf_unveil(pn->path, "r") == -1)
+			return false;
+	}
+
+	pkgconf_client_set_unveil_handler(&pkg_client, unveil_handler);
+
+	return true;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -801,8 +1088,19 @@ main(int argc, char *argv[])
 	char *logfile_arg = NULL;
 	char *want_env_prefix = NULL;
 	unsigned int want_client_flags = PKGCONF_PKG_PKGF_NONE;
-	pkgconf_cross_personality_t *personality;
+	pkgconf_cross_personality_t *personality = NULL;
 	bool opened_error_msgout = false;
+	pkgconf_pkg_t world = {
+		.id = "virtual:world",
+		.realname = "virtual world package",
+		.flags = PKGCONF_PKG_PROPF_STATIC | PKGCONF_PKG_PROPF_VIRTUAL,
+	};
+
+	if (pkgconf_pledge("stdio rpath wpath cpath unveil", NULL) == -1)
+	{
+		fprintf(stderr, "pkgconf: pledge failed: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
 
 	want_flags = 0;
 
@@ -836,6 +1134,7 @@ main(int argc, char *argv[])
 		{ "print-variables", no_argument, &want_flags, PKG_VARIABLES|PKG_PRINT_ERRORS, },
 #ifndef PKGCONF_LITE
 		{ "digraph", no_argument, &want_flags, PKG_DIGRAPH, },
+		{ "solution", no_argument, &want_flags, PKG_SOLUTION, },
 #endif
 		{ "help", no_argument, &want_flags, PKG_HELP, },
 		{ "env-only", no_argument, &want_flags, PKG_ENV_ONLY, },
@@ -883,6 +1182,10 @@ main(int argc, char *argv[])
 		{ "dump-personality", no_argument, &want_flags, PKG_DUMP_PERSONALITY },
 		{ "personality", required_argument, NULL, 53 },
 #endif
+		{ "license", no_argument, &want_flags, PKG_DUMP_LICENSE },
+		{ "verbose", no_argument, NULL, 55 },
+		{ "exists-cflags", no_argument, &want_flags, PKG_EXISTS_CFLAGS },
+		{ "fragment-tree", no_argument, &want_flags, PKG_FRAGMENT_TREE },
 		{ NULL, 0, NULL, 0 }
 	};
 
@@ -892,12 +1195,6 @@ main(int argc, char *argv[])
 		error_msgout = stderr;
 		pkgconf_client_set_trace_handler(&pkg_client, error_handler, NULL);
 	}
-#endif
-
-#ifndef PKGCONF_LITE
-	personality = deduce_personality(argv);
-#else
-	personality = pkgconf_cross_personality_default();
 #endif
 
 	while ((ret = pkg_getopt_long_only(argc, argv, "", options, NULL)) != -1)
@@ -929,7 +1226,7 @@ main(int argc, char *argv[])
 			logfile_arg = pkg_optarg;
 			break;
 		case 42:
-			pkgconf_path_add(pkg_optarg, &dir_list, true);
+			pkgconf_path_prepend(pkg_optarg, &dir_list, true);
 			break;
 		case 43:
 			pkgconf_client_set_prefix_varname(&pkg_client, pkg_optarg);
@@ -948,17 +1245,25 @@ main(int argc, char *argv[])
 			personality = pkgconf_cross_personality_find(pkg_optarg);
 			break;
 #endif
+		case 55:
+			verbosity++;
+			break;
 		case '?':
 		case ':':
-			return EXIT_FAILURE;
-			break;
+			ret = EXIT_FAILURE;
+			goto out;
 		default:
 			break;
 		}
 	}
 
-	pkgconf_path_copy_list(&personality->dir_list, &dir_list);
-	pkgconf_path_free(&dir_list);
+	if (personality == NULL) {
+#ifndef PKGCONF_LITE
+		personality = deduce_personality(argv);
+#else
+		personality = pkgconf_cross_personality_default();
+#endif
+	}
 
 #ifndef PKGCONF_LITE
 	if ((want_flags & PKG_DUMP_PERSONALITY) == PKG_DUMP_PERSONALITY)
@@ -970,6 +1275,13 @@ main(int argc, char *argv[])
 
 	/* now, bring up the client.  settings are preserved since the client is prealloced */
 	pkgconf_client_init(&pkg_client, error_handler, NULL, personality);
+
+	/* unveil the entire search path now that we have loaded the personality data. */
+	if (!unveil_search_paths(&pkg_client, personality))
+	{
+		fprintf(stderr, "pkgconf: unveil failed: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
 
 #ifndef PKGCONF_LITE
 	if ((want_flags & PKG_MSVC_SYNTAX) == PKG_MSVC_SYNTAX || getenv("PKG_CONFIG_MSVC_SYNTAX") != NULL)
@@ -998,26 +1310,38 @@ main(int argc, char *argv[])
 		pkgconf_client_set_trace_handler(&pkg_client, error_handler, NULL);
 #endif
 
+	pkgconf_path_prepend_list(&pkg_client.dir_list, &dir_list);
+	pkgconf_path_free(&dir_list);
+
 	if ((want_flags & PKG_ABOUT) == PKG_ABOUT)
 	{
 		about();
-		return EXIT_SUCCESS;
+
+		ret = EXIT_SUCCESS;
+		goto out;
 	}
 
 	if ((want_flags & PKG_VERSION) == PKG_VERSION)
 	{
 		version();
-		return EXIT_SUCCESS;
+
+		ret = EXIT_SUCCESS;
+		goto out;
 	}
 
 	if ((want_flags & PKG_HELP) == PKG_HELP)
 	{
 		usage();
-		return EXIT_SUCCESS;
+
+		ret = EXIT_SUCCESS;
+		goto out;
 	}
 
 	if (getenv("PKG_CONFIG_FDO_SYSROOT_RULES"))
 		want_client_flags |= PKGCONF_PKG_PKGF_FDO_SYSROOT_RULES;
+
+	if (getenv("PKG_CONFIG_PKGCONF1_SYSROOT_RULES"))
+		want_client_flags |= PKGCONF_PKG_PKGF_PKGCONF1_SYSROOT_RULES;
 
 	if ((want_flags & PKG_SHORT_ERRORS) == PKG_SHORT_ERRORS)
 		want_client_flags |= PKGCONF_PKG_PKGF_SIMPLIFY_ERRORS;
@@ -1058,7 +1382,7 @@ main(int argc, char *argv[])
 /* On Windows we want to always redefine the prefix by default
  * but allow that behavior to be manually disabled */
 #if !defined(_WIN32) && !defined(_WIN64)
-	if ((want_flags & PKG_DEFINE_PREFIX) == PKG_DEFINE_PREFIX)
+	if ((want_flags & PKG_DEFINE_PREFIX) == PKG_DEFINE_PREFIX || getenv("PKG_CONFIG_RELOCATE_PATHS") != NULL)
 #endif
 		want_client_flags |= PKGCONF_PKG_PKGF_REDEFINE_PREFIX;
 
@@ -1074,28 +1398,25 @@ main(int argc, char *argv[])
 	if ((want_flags & PKG_INTERNAL_CFLAGS) == PKG_INTERNAL_CFLAGS)
 		want_client_flags |= PKGCONF_PKG_PKGF_DONT_FILTER_INTERNAL_CFLAGS;
 
-#ifdef XXX_NOTYET
-	/* if these selectors are used, it means that we are inquiring about a single package.
-	 * so signal to libpkgconf that we do not want to use the dependency resolver for more than one level,
-	 * and also limit the SAT problem to a single package.
-	 *
-	 * i disabled this because too many upstream maintainers are still invoking pkg-config correctly to have
-	 * the more sane behaviour as default.  use --maximum-traverse-depth=1 or PKG_CONFIG_MAXIMUM_TRAVERSE_DEPTH
-	 * environment variable to get the same results in meantime.
+	/* if these selectors are used, it means that we are querying metadata.
+	 * so signal to libpkgconf that we only want to walk the flattened dependency set.
 	 */
-	if ((want_flags & PKG_EXISTS) == 0 &&
-		((want_flags & PKG_REQUIRES) == PKG_REQUIRES ||
-		(want_flags & PKG_REQUIRES_PRIVATE) == PKG_REQUIRES_PRIVATE ||
-		(want_flags & PKG_PROVIDES) == PKG_PROVIDES ||
-		(want_flags & PKG_VARIABLES) == PKG_VARIABLES ||
-		(want_flags & PKG_MODVERSION) == PKG_MODVERSION ||
-		(want_flags & PKG_PATH) == PKG_PATH ||
-		want_variable != NULL))
-	{
-		maximum_package_count = 1;
+	if ((want_flags & PKG_MODVERSION) == PKG_MODVERSION ||
+	    (want_flags & PKG_REQUIRES) == PKG_REQUIRES ||
+	    (want_flags & PKG_REQUIRES_PRIVATE) == PKG_REQUIRES_PRIVATE ||
+	    (want_flags & PKG_PROVIDES) == PKG_PROVIDES ||
+	    (want_flags & PKG_VARIABLES) == PKG_VARIABLES ||
+	    (want_flags & PKG_PATH) == PKG_PATH ||
+	    want_variable != NULL)
 		maximum_traverse_depth = 1;
-	}
-#endif
+
+	/* if we are asking for a variable, path or list of variables, this only makes sense
+	 * for a single package.
+	 */
+	if ((want_flags & PKG_VARIABLES) == PKG_VARIABLES ||
+	    (want_flags & PKG_PATH) == PKG_PATH ||
+	    want_variable != NULL)
+		maximum_package_count = 1;
 
 	if (getenv("PKG_CONFIG_ALLOW_SYSTEM_CFLAGS") != NULL)
 		want_flags |= PKG_KEEP_SYSTEM_CFLAGS;
@@ -1105,6 +1426,12 @@ main(int argc, char *argv[])
 
 	if ((builddir = getenv("PKG_CONFIG_TOP_BUILD_DIR")) != NULL)
 		pkgconf_client_set_buildroot_dir(&pkg_client, builddir);
+
+	if ((want_flags & PKG_REQUIRES_PRIVATE) == PKG_REQUIRES_PRIVATE ||
+		(want_flags & PKG_CFLAGS))
+	{
+		want_client_flags |= PKGCONF_PKG_PKGF_SEARCH_PRIVATE;
+	}
 
 	if ((sysroot_dir = getenv("PKG_CONFIG_SYSROOT_DIR")) != NULL)
 	{
@@ -1125,24 +1452,31 @@ main(int argc, char *argv[])
 	/* at this point, want_client_flags should be set, so build the dir list */
 	pkgconf_client_dir_list_build(&pkg_client, personality);
 
+	/* preload any files in PKG_CONFIG_PRELOADED_FILES */
+	pkgconf_client_preload_from_environ(&pkg_client, "PKG_CONFIG_PRELOADED_FILES");
+
 	if (required_pkgconfig_version != NULL)
 	{
 		if (pkgconf_compare_version(PACKAGE_VERSION, required_pkgconfig_version) >= 0)
-			return EXIT_SUCCESS;
+			ret = EXIT_SUCCESS;
+		else
+			ret = EXIT_FAILURE;
 
-		return EXIT_FAILURE;
+		goto out;
 	}
 
 	if ((want_flags & PKG_LIST) == PKG_LIST)
 	{
 		pkgconf_scan_all(&pkg_client, NULL, print_list_entry);
-		return EXIT_SUCCESS;
+		ret = EXIT_SUCCESS;
+		goto out;
 	}
 
 	if ((want_flags & PKG_LIST_PACKAGE_NAMES) == PKG_LIST_PACKAGE_NAMES)
 	{
 		pkgconf_scan_all(&pkg_client, NULL, print_package_entry);
-		return EXIT_SUCCESS;
+		ret = EXIT_SUCCESS;
+		goto out;
 	}
 
 	if (logfile_arg == NULL)
@@ -1150,13 +1484,19 @@ main(int argc, char *argv[])
 
 	if (logfile_arg != NULL)
 	{
+		if (pkgconf_unveil(logfile_arg, "rwc") == -1)
+		{
+			fprintf(stderr, "pkgconf: unveil failed: %s\n", strerror(errno));
+			return EXIT_FAILURE;
+		}
+
 		logfile_out = fopen(logfile_arg, "w");
 		pkgconf_audit_set_log(&pkg_client, logfile_out);
 	}
 
 	if (required_module_version != NULL)
 	{
-		pkgconf_pkg_t *pkg;
+		pkgconf_pkg_t *pkg = NULL;
 		pkgconf_node_t *node;
 		pkgconf_list_t deplist = PKGCONF_LIST_INITIALIZER;
 
@@ -1175,18 +1515,28 @@ main(int argc, char *argv[])
 			{
 				if (want_flags & PKG_PRINT_ERRORS)
 					pkgconf_error(&pkg_client, "Package '%s' was not found\n", pkgiter->package);
-				return EXIT_FAILURE;
+
+				ret = EXIT_FAILURE;
+				goto cleanup;
 			}
 
 			if (pkgconf_compare_version(pkg->version, required_module_version) >= 0)
-				return EXIT_SUCCESS;
+			{
+				ret = EXIT_SUCCESS;
+				goto cleanup;
+			}
 		}
 
-		return EXIT_FAILURE;
+		ret = EXIT_FAILURE;
+cleanup:
+		if (pkg != NULL)
+			pkgconf_pkg_unref(&pkg_client, pkg);
+		pkgconf_dependency_free(&deplist);
+		goto out;
 	}
 	else if (required_exact_module_version != NULL)
 	{
-		pkgconf_pkg_t *pkg;
+		pkgconf_pkg_t *pkg = NULL;
 		pkgconf_node_t *node;
 		pkgconf_list_t deplist = PKGCONF_LIST_INITIALIZER;
 
@@ -1205,18 +1555,28 @@ main(int argc, char *argv[])
 			{
 				if (want_flags & PKG_PRINT_ERRORS)
 					pkgconf_error(&pkg_client, "Package '%s' was not found\n", pkgiter->package);
-				return EXIT_FAILURE;
+
+				ret = EXIT_FAILURE;
+				goto cleanup2;
 			}
 
 			if (pkgconf_compare_version(pkg->version, required_exact_module_version) == 0)
-				return EXIT_SUCCESS;
+			{
+				ret = EXIT_SUCCESS;
+				goto cleanup2;
+			}
 		}
 
-		return EXIT_FAILURE;
+		ret = EXIT_FAILURE;
+cleanup2:
+		if (pkg != NULL)
+			pkgconf_pkg_unref(&pkg_client, pkg);
+		pkgconf_dependency_free(&deplist);
+		goto out;
 	}
 	else if (required_max_module_version != NULL)
 	{
-		pkgconf_pkg_t *pkg;
+		pkgconf_pkg_t *pkg = NULL;
 		pkgconf_node_t *node;
 		pkgconf_list_t deplist = PKGCONF_LIST_INITIALIZER;
 
@@ -1235,19 +1595,30 @@ main(int argc, char *argv[])
 			{
 				if (want_flags & PKG_PRINT_ERRORS)
 					pkgconf_error(&pkg_client, "Package '%s' was not found\n", pkgiter->package);
-				return EXIT_FAILURE;
+
+				ret = EXIT_FAILURE;
+				goto cleanup3;
 			}
 
 			if (pkgconf_compare_version(pkg->version, required_max_module_version) <= 0)
-				return EXIT_SUCCESS;
+			{
+				ret = EXIT_SUCCESS;
+				goto cleanup3;
+			}
 		}
 
-		return EXIT_FAILURE;
+		ret = EXIT_FAILURE;
+cleanup3:
+		if (pkg != NULL)
+			pkgconf_pkg_unref(&pkg_client, pkg);
+		pkgconf_dependency_free(&deplist);
+		goto out;
 	}
 
 	while (1)
 	{
-		const char *package = argv[pkg_optind];
+		char *package = argv[pkg_optind];
+		char *end;
 
 		if (package == NULL)
 			break;
@@ -1255,10 +1626,10 @@ main(int argc, char *argv[])
 		/* check if there is a limit to the number of packages allowed to be included, if so and we have hit
 		 * the limit, stop adding packages to the queue.
 		 */
-		if (maximum_package_count > 0 && pkgq.length > maximum_package_count)
+		if (maximum_package_count > 0 && pkgq.length >= maximum_package_count)
 			break;
 
-		while (isspace((unsigned int)package[0]))
+		while (isspace((unsigned char)package[0]))
 			package++;
 
 		/* skip empty packages */
@@ -1267,10 +1638,23 @@ main(int argc, char *argv[])
 			continue;
 		}
 
+		end = package + strlen(package) - 1;
+		while(end > package && isspace((unsigned char)end[0])) end--;
+		end[1] = '\0';
+
 		if (argv[pkg_optind + 1] == NULL || !PKGCONF_IS_OPERATOR_CHAR(*(argv[pkg_optind + 1])))
 		{
 			pkgconf_queue_push(&pkgq, package);
 			pkg_optind++;
+		}
+		else if (argv[pkg_optind + 2] == NULL)
+		{
+			char packagebuf[PKGCONF_BUFSIZE];
+
+			snprintf(packagebuf, sizeof packagebuf, "%s %s", package, argv[pkg_optind + 1]);
+			pkg_optind += 2;
+
+			pkgconf_queue_push(&pkgq, packagebuf);
 		}
 		else
 		{
@@ -1286,10 +1670,24 @@ main(int argc, char *argv[])
 	if (pkgq.head == NULL)
 	{
 		fprintf(stderr, "Please specify at least one package name on the command line.\n");
-		return EXIT_FAILURE;
+		ret = EXIT_FAILURE;
+		goto out;
 	}
 
 	ret = EXIT_SUCCESS;
+
+	if (!pkgconf_queue_solve(&pkg_client, &pkgq, &world, maximum_traverse_depth))
+	{
+		ret = EXIT_FAILURE;
+		goto out;
+	}
+
+	/* we shouldn't need to unveil any more filesystem accesses from this point, so lock it down */
+	if (pkgconf_unveil(NULL, NULL) == -1)
+	{
+		fprintf(stderr, "pkgconf: unveil lockdown failed: %s\n", strerror(errno));
+		return EXIT_FAILURE;
+	}
 
 #ifndef PKGCONF_LITE
 	if ((want_flags & PKG_SIMULATE) == PKG_SIMULATE)
@@ -1297,74 +1695,56 @@ main(int argc, char *argv[])
 		want_flags &= ~(PKG_CFLAGS|PKG_LIBS);
 
 		pkgconf_client_set_flags(&pkg_client, want_client_flags | PKGCONF_PKG_PKGF_SKIP_ERRORS);
-		if (!pkgconf_queue_apply(&pkg_client, &pkgq, apply_simulate, -1, NULL))
-		{
-			ret = EXIT_FAILURE;
-			goto out;
-		}
+		apply_simulate(&pkg_client, &world, NULL, -1);
 	}
 #endif
 
-	if (!pkgconf_queue_validate(&pkg_client, &pkgq, maximum_traverse_depth))
+	if ((want_flags & PKG_VALIDATE) == PKG_VALIDATE)
+		goto out;
+
+	if ((want_flags & PKG_DUMP_LICENSE) == PKG_DUMP_LICENSE)
 	{
-		ret = EXIT_FAILURE;
+		apply_license(&pkg_client, &world, &ret, 2);
 		goto out;
 	}
-
-	if ((want_flags & PKG_VALIDATE) == PKG_VALIDATE)
-		return 0;
 
 	if ((want_flags & PKG_UNINSTALLED) == PKG_UNINSTALLED)
 	{
 		ret = EXIT_FAILURE;
-		pkgconf_queue_apply(&pkg_client, &pkgq, apply_uninstalled, maximum_traverse_depth, &ret);
+		apply_uninstalled(&pkg_client, &world, &ret, 2);
 		goto out;
 	}
 
 	if (want_env_prefix != NULL)
 	{
-		if (!pkgconf_queue_apply(&pkg_client, &pkgq, apply_env, maximum_traverse_depth, want_env_prefix))
-		{
-			ret = EXIT_FAILURE;
-			goto out;
-		}
-
-		want_flags = 0;
+		apply_env(&pkg_client, &world, want_env_prefix, 2);
+		goto out;
 	}
 
 	if ((want_flags & PKG_PROVIDES) == PKG_PROVIDES)
 	{
 		want_flags &= ~(PKG_CFLAGS|PKG_LIBS);
-
-		if (!pkgconf_queue_apply(&pkg_client, &pkgq, apply_provides, maximum_traverse_depth, NULL))
-		{
-			ret = EXIT_FAILURE;
-			goto out;
-		}
+		apply_provides(&pkg_client, &world, NULL, 2);
 	}
 
 #ifndef PKGCONF_LITE
 	if ((want_flags & PKG_DIGRAPH) == PKG_DIGRAPH)
 	{
 		want_flags &= ~(PKG_CFLAGS|PKG_LIBS);
+		apply_digraph(&pkg_client, &world, &pkgq, 2);
+	}
 
-		if (!pkgconf_queue_apply(&pkg_client, &pkgq, apply_digraph, maximum_traverse_depth, NULL))
-		{
-			ret = EXIT_FAILURE;
-			goto out;
-		}
+	if ((want_flags & PKG_SOLUTION) == PKG_SOLUTION)
+	{
+		want_flags &= ~(PKG_CFLAGS|PKG_LIBS);
+		apply_print_solution(&pkg_client, &world, NULL, 2);
 	}
 #endif
 
 	if ((want_flags & PKG_MODVERSION) == PKG_MODVERSION)
 	{
 		want_flags &= ~(PKG_CFLAGS|PKG_LIBS);
-
-		if (!pkgconf_queue_apply(&pkg_client, &pkgq, apply_modversion, maximum_traverse_depth, NULL))
-		{
-			ret = EXIT_FAILURE;
-			goto out;
-		}
+		apply_modversion(&pkg_client, &world, &pkgq, 2);
 	}
 
 	if ((want_flags & PKG_PATH) == PKG_PATH)
@@ -1372,22 +1752,13 @@ main(int argc, char *argv[])
 		want_flags &= ~(PKG_CFLAGS|PKG_LIBS);
 
 		pkgconf_client_set_flags(&pkg_client, want_client_flags | PKGCONF_PKG_PKGF_SKIP_ROOT_VIRTUAL);
-		if (!pkgconf_queue_apply(&pkg_client, &pkgq, apply_path, maximum_traverse_depth, NULL))
-		{
-			ret = EXIT_FAILURE;
-			goto out;
-		}
+		apply_path(&pkg_client, &world, NULL, 2);
 	}
 
 	if ((want_flags & PKG_VARIABLES) == PKG_VARIABLES)
 	{
 		want_flags &= ~(PKG_CFLAGS|PKG_LIBS);
-
-		if (!pkgconf_queue_apply(&pkg_client, &pkgq, apply_variables, maximum_traverse_depth, NULL))
-		{
-			ret = EXIT_FAILURE;
-			goto out;
-		}
+		apply_variables(&pkg_client, &world, NULL, 2);
 	}
 
 	if (want_variable)
@@ -1395,68 +1766,51 @@ main(int argc, char *argv[])
 		want_flags &= ~(PKG_CFLAGS|PKG_LIBS);
 
 		pkgconf_client_set_flags(&pkg_client, want_client_flags | PKGCONF_PKG_PKGF_SKIP_ROOT_VIRTUAL);
-		if (!pkgconf_queue_apply(&pkg_client, &pkgq, apply_variable, maximum_traverse_depth, want_variable))
-		{
-			ret = EXIT_FAILURE;
-			goto out;
-		}
+		apply_variable(&pkg_client, &world, want_variable, 2);
 	}
 
 	if ((want_flags & PKG_REQUIRES) == PKG_REQUIRES)
 	{
 		want_flags &= ~(PKG_CFLAGS|PKG_LIBS);
-
-		if (!pkgconf_queue_apply(&pkg_client, &pkgq, apply_requires, maximum_traverse_depth, NULL))
-		{
-			ret = EXIT_FAILURE;
-			goto out;
-		}
+		apply_requires(&pkg_client, &world, NULL, 2);
 	}
 
 	if ((want_flags & PKG_REQUIRES_PRIVATE) == PKG_REQUIRES_PRIVATE)
 	{
 		want_flags &= ~(PKG_CFLAGS|PKG_LIBS);
 
-		pkgconf_client_set_flags(&pkg_client, want_client_flags | PKGCONF_PKG_PKGF_SEARCH_PRIVATE);
+		apply_requires_private(&pkg_client, &world, NULL, 2);
+	}
 
-		if (!pkgconf_queue_apply(&pkg_client, &pkgq, apply_requires_private, maximum_traverse_depth, NULL))
-		{
-			ret = EXIT_FAILURE;
-			goto out;
-		}
+	if ((want_flags & PKG_FRAGMENT_TREE))
+	{
+		want_flags &= ~(PKG_CFLAGS|PKG_LIBS);
 
-		pkgconf_client_set_flags(&pkg_client, want_client_flags);
+		apply_fragment_tree(&pkg_client, &world, NULL, 2);
 	}
 
 	if ((want_flags & PKG_CFLAGS))
 	{
-		pkgconf_client_set_flags(&pkg_client, want_client_flags | PKGCONF_PKG_PKGF_SEARCH_PRIVATE);
-
-		if (!pkgconf_queue_apply(&pkg_client, &pkgq, apply_cflags, maximum_traverse_depth, NULL))
-		{
-			ret = EXIT_FAILURE;
-			goto out_println;
-		}
-
-		pkgconf_client_set_flags(&pkg_client, want_client_flags);
+		apply_cflags(&pkg_client, &world, NULL, 2);
 	}
 
 	if ((want_flags & PKG_LIBS))
 	{
-		if (!pkgconf_queue_apply(&pkg_client, &pkgq, apply_libs, maximum_traverse_depth, NULL))
-		{
-			ret = EXIT_FAILURE;
-			goto out_println;
-		}
+		if (want_flags & PKG_CFLAGS)
+			printf(" ");
+
+		if (!(want_flags & PKG_STATIC))
+			pkgconf_client_set_flags(&pkg_client, pkg_client.flags & ~PKGCONF_PKG_PKGF_SEARCH_PRIVATE);
+
+		apply_libs(&pkg_client, &world, NULL, 2);
 	}
 
-	pkgconf_queue_free(&pkgq);
-
-out_println:
 	if (want_flags & (PKG_CFLAGS|PKG_LIBS))
 		printf("\n");
 
 out:
+	pkgconf_solution_free(&pkg_client, &world);
+	pkgconf_queue_free(&pkgq);
 	pkgconf_cross_personality_deinit(personality);
 	pkgconf_client_deinit(&pkg_client);
 
