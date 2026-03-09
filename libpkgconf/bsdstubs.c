@@ -20,11 +20,15 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <string.h>
+#include <errno.h>
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 #include <libpkgconf/bsdstubs.h>
 #include <libpkgconf/config.h>
 
-#ifndef HAVE_STRLCPY
+#if !HAVE_DECL_STRLCPY
 /*
  * Copy src to string dst of size siz.  At most siz-1 characters
  * will be copied.  Always NUL terminates (unless siz == 0).
@@ -57,7 +61,7 @@ strlcpy(char *dst, const char *src, size_t siz)
 }
 #endif
 
-#ifndef HAVE_STRLCAT
+#if !HAVE_DECL_STRLCAT
 /*
  * Appends src to string dst of size siz (unlike strncat, siz is the
  * full size of dst, not space left).  At most siz-1 characters
@@ -106,7 +110,7 @@ strlcat(char *dst, const char *src, size_t siz)
  * from the use of this software.
  */
 
-#ifndef HAVE_STRNDUP
+#if !HAVE_DECL_STRNDUP
 /*
  * Creates a memory buffer and copies at most 'len' characters to it.
  * If 'len' is less than the length of the source string, truncation occured.
@@ -117,6 +121,28 @@ strndup(const char *src, size_t len)
 	char *out = malloc(len + 1);
 	pkgconf_strlcpy(out, src, len + 1);
 	return out;
+}
+#endif
+
+#if !HAVE_DECL_PLEDGE
+static inline int
+pledge(const char *promises, const char *execpromises)
+{
+	(void) promises;
+	(void) execpromises;
+
+	return 0;
+}
+#endif
+
+#if !HAVE_DECL_UNVEIL
+static inline int
+unveil(const char *path, const char *permissions)
+{
+	(void) path;
+	(void) permissions;
+
+	return 0;
 }
 #endif
 
@@ -136,4 +162,36 @@ char *
 pkgconf_strndup(const char *src, size_t len)
 {
 	return strndup(src, len);
+}
+
+#if !HAVE_DECL_REALLOCARRAY
+void *
+reallocarray(void *ptr, size_t m, size_t n)
+{
+	if (n && m > -1 / n)
+	{
+		errno = ENOMEM;
+		return 0;
+	}
+
+	return realloc(ptr, m * n);
+}
+#endif
+
+void *
+pkgconf_reallocarray(void *ptr, size_t m, size_t n)
+{
+	return reallocarray(ptr, m, n);
+}
+
+int
+pkgconf_pledge(const char *promises, const char *execpromises)
+{
+	return pledge(promises, execpromises);
+}
+
+int
+pkgconf_unveil(const char *path, const char *permissions)
+{
+	return unveil(path, permissions);
 }

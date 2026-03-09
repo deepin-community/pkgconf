@@ -11,12 +11,13 @@ tests = [
   'provides',
   'regress',
   'requires',
+  'symlink',
   'sysroot',
-  'version'
+  'version',
 ]
 
 
 # yuck
 foreach test : tests
-  configure_file(input: test + '.sh', output: test, copy: true)
+  test_file = configure_file(input: test + '.sh', output: test, copy: true)
 endforeach

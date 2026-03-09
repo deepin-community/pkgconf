@@ -8,6 +8,7 @@ tests_init \
 	depgraph_break_2 \
 	depgraph_break_3 \
 	define_variable \
+	define_variable_override \
 	variable \
 	keep_system_libs \
 	libs \
@@ -22,6 +23,15 @@ tests_init \
 	idirafter_munge_order \
 	idirafter_munge_sysroot \
 	idirafter_ordering \
+	modversion_common_prefix \
+	modversion_fullpath \
+	modversion_provides \
+	modversion_uninstalled \
+	modversion_one_word_expression \
+	modversion_two_word_expression \
+	modversion_three_word_expression \
+	modversion_one_word_expression_no_space \
+	modversion_one_word_expression_no_space_zero \
 	pcpath \
 	virtual_variable \
 	fragment_collision \
@@ -29,7 +39,10 @@ tests_init \
 	malformed_quoting \
 	explicit_sysroot \
 	empty_tuple \
-	billion_laughs
+	solver_requires_private_debounce \
+	billion_laughs \
+	define_prefix_child_prefix_1 \
+	define_prefix_child_prefix_1_env
 
 #	sysroot_munge \
 
@@ -72,6 +85,13 @@ define_variable_body()
 		pkgconf --variable=typelibdir --define-variable='libdir=\${libdir}' typelibdir
 }
 
+define_variable_override_body()
+{
+	export PKG_CONFIG_PATH="${selfdir}/lib1"
+	atf_check -o inline:"/test\n" \
+		pkgconf --variable=prefix --define-variable='prefix=/test' typelibdir
+}
+
 variable_body()
 {
 	export PKG_CONFIG_PATH="${selfdir}/lib1"
@@ -89,7 +109,7 @@ keep_system_libs_body()
 		pkgconf --libs-only-L cflags-libs-only
 
 	atf_check \
-		-o inline:"-L/test/local/lib \n" \
+		-o inline:"-L/test/local/lib\n" \
 		pkgconf --libs-only-L --keep-system-libs cflags-libs-only
 }
 
@@ -97,7 +117,7 @@ libs_body()
 {
 	export PKG_CONFIG_PATH="${selfdir}/lib1"
 	atf_check \
-		-o inline:"-L/test/local/lib -lfoo \n" \
+		-o inline:"-L/test/local/lib -lfoo\n" \
 		pkgconf --libs cflags-libs-only
 }
 
@@ -105,7 +125,7 @@ libs_only_body()
 {
 	export PKG_CONFIG_PATH="${selfdir}/lib1"
 	atf_check \
-		-o inline:"-L/test/local/lib -lfoo \n" \
+		-o inline:"-L/test/local/lib -lfoo\n" \
 		pkgconf --libs-only-L --libs-only-l cflags-libs-only
 }
 
@@ -113,10 +133,10 @@ libs_never_mergeback_body()
 {
 	export PKG_CONFIG_PATH="${selfdir}/lib1"
 	atf_check \
-		-o inline:"-L/test/bar/lib -lfoo1 \n" \
+		-o inline:"-L/test/bar/lib -lfoo1\n" \
 		pkgconf --libs prefix-foo1
 	atf_check \
-		-o inline:"-L/test/bar/lib -lfoo1 -lfoo2 \n" \
+		-o inline:"-L/test/bar/lib -lfoo1 -lfoo2\n" \
 		pkgconf --libs prefix-foo1 prefix-foo2
 }
 
@@ -124,7 +144,7 @@ cflags_only_body()
 {
 	export PKG_CONFIG_PATH="${selfdir}/lib1"
 	atf_check \
-		-o inline:"-I/test/local/include/foo \n" \
+		-o inline:"-I/test/local/include/foo\n" \
 		pkgconf --cflags-only-I --cflags-only-other cflags-libs-only
 }
 
@@ -132,7 +152,7 @@ cflags_never_mergeback_body()
 {
 	export PKG_CONFIG_PATH="${selfdir}/lib1"
 	atf_check \
-		-o inline:"-I/test/bar/include/foo -DBAR -fPIC -DFOO \n" \
+		-o inline:"-I/test/bar/include/foo -DBAR -fPIC -DFOO\n" \
 		pkgconf --cflags prefix-foo1 prefix-foo2
 }
 
@@ -156,7 +176,7 @@ isystem_munge_order_body()
 {
 	export PKG_CONFIG_PATH="${selfdir}/lib1"
 	atf_check \
-		-o inline:"-isystem /opt/bad/include -isystem /opt/bad2/include \n" \
+		-o inline:"-isystem /opt/bad/include -isystem /opt/bad2/include\n" \
 		pkgconf --cflags isystem
 }
 
@@ -172,7 +192,7 @@ idirafter_munge_order_body()
 {
 	export PKG_CONFIG_PATH="${selfdir}/lib1"
 	atf_check \
-		-o inline:"-idirafter /opt/bad/include -idirafter /opt/bad2/include \n" \
+		-o inline:"-idirafter /opt/bad/include -idirafter /opt/bad2/include\n" \
 		pkgconf --cflags idirafter
 }
 
@@ -188,7 +208,7 @@ idirafter_ordering_body()
 {
 	export PKG_CONFIG_PATH="${selfdir}/lib1"
 	atf_check \
-		-o inline:"-I/opt/bad/include1 -idirafter -I/opt/bad/include2 -I/opt/bad/include3 \n" \
+		-o inline:"-I/opt/bad/include1 -idirafter -I/opt/bad/include2 -I/opt/bad/include3\n" \
 		pkgconf --cflags idirafter-ordering
 }
 
@@ -196,7 +216,7 @@ pcpath_body()
 {
 	export PKG_CONFIG_PATH="${selfdir}/lib2"
 	atf_check \
-		-o inline:"-fPIC -I/test/include/foo \n" \
+		-o inline:"-fPIC -I/test/include/foo\n" \
 		pkgconf --cflags ${selfdir}/lib3/bar.pc
 }
 
@@ -205,7 +225,7 @@ sysroot_munge_body()
 	sed "s|/sysroot/|${selfdir}/|g" ${selfdir}/lib1/sysroot-dir.pc > ${selfdir}/lib1/sysroot-dir-selfdir.pc
 	export PKG_CONFIG_PATH="${selfdir}/lib1" PKG_CONFIG_SYSROOT_DIR="${selfdir}"
 	atf_check \
-		-o inline:"-L${selfdir}/lib -lfoo \n" \
+		-o inline:"-L${selfdir}/lib -lfoo\n" \
 		pkgconf --libs sysroot-dir-selfdir
 }
 
@@ -224,7 +244,7 @@ virtual_variable_body()
 
 fragment_collision_body()
 {
-	atf_check -o inline:"-D_BAZ -D_BAR -D_FOO -D_THREAD_SAFE -pthread \n" \
+	atf_check -o inline:"-D_BAZ -D_BAR -D_FOO -D_THREAD_SAFE -pthread\n" \
 		pkgconf --with-path="${selfdir}/lib1" --cflags fragment-collision
 }
 
@@ -253,8 +273,82 @@ empty_tuple_body()
 		pkgconf --with-path="${selfdir}/lib1" --cflags empty-tuple
 }
 
+solver_requires_private_debounce_body()
+{
+	atf_check -o inline:"-I/metapackage-1 -I/metapackage-2 -lmetapackage-1 -lmetapackage-2\n" \
+		pkgconf --with-path="${selfdir}/lib1" --cflags --libs metapackage
+}
+
 billion_laughs_body()
 {
 	atf_check -o inline:"warning: truncating very long variable to 64KB\nwarning: truncating very long variable to 64KB\nwarning: truncating very long variable to 64KB\nwarning: truncating very long variable to 64KB\nwarning: truncating very long variable to 64KB\n" \
 		pkgconf --with-path="${selfdir}/lib1" --validate billion-laughs
+}
+
+modversion_common_prefix_body()
+{
+	atf_check -o inline:"foo: 1.2.3\nfoobar: 3.2.1\n" \
+		pkgconf --with-path="${selfdir}/lib1" --modversion --verbose foo foobar
+}
+
+modversion_fullpath_body()
+{
+	atf_check -o inline:"1.2.3\n" \
+		pkgconf --modversion "${selfdir}/lib1/foo.pc"
+}
+
+modversion_provides_body()
+{
+	atf_check -o inline:"1.2.3\n" \
+		pkgconf --with-path="${selfdir}/lib1" --modversion unavailable
+}
+
+modversion_uninstalled_body()
+{
+	atf_check -o inline:"1.2.3\n" \
+		pkgconf --with-path="${selfdir}/lib1" --modversion omg
+}
+
+modversion_one_word_expression_body()
+{
+	atf_check -o inline:"1.2.3\n" \
+		pkgconf --with-path="${selfdir}/lib1" --modversion "foo > 1.0"
+}
+
+modversion_two_word_expression_body()
+{
+	atf_check -o inline:"1.2.3\n" \
+		pkgconf --with-path="${selfdir}/lib1" --modversion foo "> 1.0"
+}
+
+modversion_three_word_expression_body()
+{
+	atf_check -o inline:"1.2.3\n" \
+		pkgconf --with-path="${selfdir}/lib1" --modversion foo ">" 1.0
+}
+
+modversion_one_word_expression_no_space_body()
+{
+	atf_check -o inline:"1.2.3\n" \
+		pkgconf --with-path="${selfdir}/lib1" --modversion "foo >1.0"
+}
+
+modversion_one_word_expression_no_space_zero_body()
+{
+	atf_check -o inline:"1.2.3\n" \
+		pkgconf --with-path="${selfdir}/lib1" --modversion "foo >0.5"
+}
+
+define_prefix_child_prefix_1_body()
+{
+	atf_check -o inline:"-I${selfdir}/lib1/include/child-prefix-1 -L${selfdir}/lib1/lib64 -lchild-prefix-1\n" \
+		pkgconf --with-path="${selfdir}/lib1/child-prefix/pkgconfig" --define-prefix --cflags --libs child-prefix-1
+}
+
+define_prefix_child_prefix_1_env_body()
+{
+	export PKG_CONFIG_PATH="${selfdir}/lib1/child-prefix/pkgconfig"
+	export PKG_CONFIG_RELOCATE_PATHS=1
+	atf_check -o inline:"-I${selfdir}/lib1/include/child-prefix-1 -L${selfdir}/lib1/lib64 -lchild-prefix-1\n" \
+		pkgconf --cflags --libs child-prefix-1
 }

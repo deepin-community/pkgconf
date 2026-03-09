@@ -2,7 +2,7 @@ Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: pkgconf
 Upstream-Contact: Baptiste Daroussin <bapt@FreeBSD.org>
                   Jeff Horelick <jdhore@gentoo.org>
-                  Michał Górny <mgorny@gentoo.org
+                  Michał Górny <mgorny@gentoo.org>
                   Ariadne Conill <ariadne@dereferenced.org>
 
 Files: *
@@ -11,6 +11,7 @@ License: ISC
 
 Files: debian/*
 Copyright: 2013—2022 Andrej Shadura <andrewsh@debian.org>
+           2025 Andrea Pappacoda <tachi@debian.org>
 License: ISC
 
 Files: libpkgconf/bsdstubs.c
@@ -127,8 +128,7 @@ License: GPL-2+
  General Public License for more details.
  .
  You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+ along with this program; if not, see <https://www.gnu.org/licenses/>.
  .
  As a special exception to the GNU General Public License, if you
  distribute this file as part of a program that contains a

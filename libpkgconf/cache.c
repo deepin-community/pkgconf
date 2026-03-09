@@ -16,6 +16,8 @@
 #include <libpkgconf/stdinc.h>
 #include <libpkgconf/libpkgconf.h>
 
+#include <assert.h>
+
 /*
  * !doc
  *
@@ -28,6 +30,46 @@
  * A cache is tied to a specific pkgconf client object, so package objects should not
  * be shared across threads.
  */
+
+static int
+cache_member_cmp(const void *a, const void *b)
+{
+	const char *key = a;
+	const pkgconf_pkg_t *pkg = *(void **) b;
+
+	return strcmp(key, pkg->id);
+}
+
+static int
+cache_member_sort_cmp(const void *a, const void *b)
+{
+	const pkgconf_pkg_t *pkgA = *(void **) a;
+	const pkgconf_pkg_t *pkgB = *(void **) b;
+
+	if (pkgA == NULL)
+		return 1;
+
+	if (pkgB == NULL)
+		return -1;
+
+	return strcmp(pkgA->id, pkgB->id);
+}
+
+static void
+cache_dump(const pkgconf_client_t *client)
+{
+	size_t i;
+
+	PKGCONF_TRACE(client, "dumping package cache contents");
+
+	for (i = 0; i < client->cache_count; i++)
+	{
+		const pkgconf_pkg_t *pkg = client->cache_table[i];
+
+		PKGCONF_TRACE(client, SIZE_FMT_SPECIFIER": %p(%s)",
+			i, pkg, pkg == NULL ? "NULL" : pkg->id);
+	}
+}
 
 /*
  * !doc
@@ -46,17 +88,19 @@
 pkgconf_pkg_t *
 pkgconf_cache_lookup(pkgconf_client_t *client, const char *id)
 {
-	pkgconf_node_t *node;
+	if (client->cache_table == NULL)
+		return NULL;
 
-	PKGCONF_FOREACH_LIST_ENTRY(client->pkg_cache.head, node)
+	pkgconf_pkg_t **pkg;
+
+	pkg = bsearch(id, client->cache_table,
+		client->cache_count, sizeof (void *),
+		cache_member_cmp);
+
+	if (pkg != NULL)
 	{
-		pkgconf_pkg_t *pkg = node->data;
-
-		if (!strcmp(pkg->id, id))
-		{
-			PKGCONF_TRACE(client, "found: %s @%p", id, pkg);
-			return pkgconf_pkg_ref(client, pkg);
-		}
+		PKGCONF_TRACE(client, "found: %s @%p", id, *pkg);
+		return pkgconf_pkg_ref(client, *pkg);
 	}
 
 	PKGCONF_TRACE(client, "miss: %s", id);
@@ -82,12 +126,19 @@ pkgconf_cache_add(pkgconf_client_t *client, pkgconf_pkg_t *pkg)
 		return;
 
 	pkgconf_pkg_ref(client, pkg);
-	pkgconf_node_insert(&pkg->cache_iter, pkg, &client->pkg_cache);
 
 	PKGCONF_TRACE(client, "added @%p to cache", pkg);
 
 	/* mark package as cached */
 	pkg->flags |= PKGCONF_PKG_PROPF_CACHED;
+
+	++client->cache_count;
+	client->cache_table = pkgconf_reallocarray(client->cache_table,
+		client->cache_count, sizeof (void *));
+	client->cache_table[client->cache_count - 1] = pkg;
+
+	qsort(client->cache_table, client->cache_count,
+		sizeof(void *), cache_member_sort_cmp);
 }
 
 /*
@@ -104,6 +155,9 @@ pkgconf_cache_add(pkgconf_client_t *client, pkgconf_pkg_t *pkg)
 void
 pkgconf_cache_remove(pkgconf_client_t *client, pkgconf_pkg_t *pkg)
 {
+	if (client->cache_table == NULL)
+		return;
+
 	if (pkg == NULL)
 		return;
 
@@ -112,7 +166,41 @@ pkgconf_cache_remove(pkgconf_client_t *client, pkgconf_pkg_t *pkg)
 
 	PKGCONF_TRACE(client, "removed @%p from cache", pkg);
 
-	pkgconf_node_delete(&pkg->cache_iter, &client->pkg_cache);
+	pkgconf_pkg_t **slot;
+
+	slot = bsearch(pkg->id, client->cache_table,
+		client->cache_count, sizeof (void *),
+		cache_member_cmp);
+
+	if (slot == NULL)
+		return;
+
+	(*slot)->flags &= ~PKGCONF_PKG_PROPF_CACHED;
+	pkgconf_pkg_unref(client, *slot);
+	*slot = NULL;
+
+	qsort(client->cache_table, client->cache_count,
+		sizeof(void *), cache_member_sort_cmp);
+
+	if (client->cache_table[client->cache_count - 1] != NULL)
+	{
+		PKGCONF_TRACE(client, "end of cache table refers to %p, not NULL",
+			client->cache_table[client->cache_count - 1]);
+		cache_dump(client);
+		abort();
+	}
+
+	client->cache_count--;
+	if (client->cache_count > 0)
+	{
+		client->cache_table = pkgconf_reallocarray(client->cache_table,
+			client->cache_count, sizeof(void *));
+	}
+	else
+	{
+		free(client->cache_table);
+		client->cache_table = NULL;
+	}
 }
 
 /*
@@ -129,15 +217,15 @@ pkgconf_cache_remove(pkgconf_client_t *client, pkgconf_pkg_t *pkg)
 void
 pkgconf_cache_free(pkgconf_client_t *client)
 {
-	pkgconf_node_t *iter, *iter2;
+	if (client->cache_table == NULL)
+		return;
 
-	PKGCONF_FOREACH_LIST_ENTRY_SAFE(client->pkg_cache.head, iter2, iter)
-	{
-		pkgconf_pkg_t *pkg = iter->data;
-		pkgconf_pkg_unref(client, pkg);
-	}
+	while (client->cache_count > 0)
+		pkgconf_cache_remove(client, client->cache_table[0]);
 
-	memset(&client->pkg_cache, 0, sizeof client->pkg_cache);
+	free(client->cache_table);
+	client->cache_table = NULL;
+	client->cache_count = 0;
 
 	PKGCONF_TRACE(client, "cleared package cache");
 }

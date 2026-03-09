@@ -30,7 +30,7 @@ fragment_should_quote(const pkgconf_fragment_t *frag)
 	for (src = frag->data; *src; src++)
 	{
 		if (((*src < ' ') ||
-		    (*src >= (' ' + (frag->merged ? 1 : 0)) && *src < '$') ||
+		    (*src >= (' ' + (frag->children.head != NULL ? 1 : 0)) && *src < '$') ||
 		    (*src > '$' && *src < '(') ||
 		    (*src > ')' && *src < '+') ||
 		    (*src > ':' && *src < '=') ||
@@ -149,7 +149,6 @@ msvc_renderer_render_buf(const pkgconf_list_t *list, char *buf, size_t buflen, b
 		{
 			cnt = pkgconf_strlcpy(bptr, ".lib", buf_remaining);
 			bptr += cnt;
-			buf_remaining -= cnt;
 		}
 
 		if (escape)
