@@ -1,3 +1,9 @@
+pkgconf (2.5.1-5) unstable; urgency=medium
+
+  * Rebuild with LTO enabled (dpkg vendor feature optimize/lto).
+
+ -- tunaichao <tunaichao@uniontech.com>  Thu, 10 Sep 2026 20:03:42 +0800
+
 pkgconf (2.5.1-4) unstable; urgency=medium
 
   * Drop Debian patches: the solver’s behavior is now stricter: all
